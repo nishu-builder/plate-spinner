@@ -2,6 +2,7 @@ import importlib.resources
 from pathlib import Path
 from typing import Literal
 
+import tomli_w
 from pydantic import BaseModel
 
 
@@ -38,26 +39,14 @@ def load_config() -> Config:
         import tomllib
         data = tomllib.loads(path.read_text())
         return Config.model_validate(data)
-    except Exception:
+    except (tomllib.TOMLDecodeError, ValueError, OSError):
         return Config()
 
 
 def save_config(config: Config) -> None:
     path = get_config_path()
     path.parent.mkdir(parents=True, exist_ok=True)
-
-    lines = ["[sounds]"]
-    lines.append(f"enabled = {str(config.sounds.enabled).lower()}")
-    lines.append(f'awaiting_input = "{config.sounds.awaiting_input}"')
-    lines.append(f'awaiting_approval = "{config.sounds.awaiting_approval}"')
-    lines.append(f'error = "{config.sounds.error}"')
-    lines.append(f'idle = "{config.sounds.idle}"')
-    lines.append(f'closed = "{config.sounds.closed}"')
-    lines.append("")
-    lines.append("[theme]")
-    lines.append(f'name = "{config.theme.name}"')
-
-    path.write_text("\n".join(lines) + "\n")
+    path.write_text(tomli_w.dumps(config.model_dump()))
 
 
 def get_sound_path(name: str) -> Path | None:
@@ -67,7 +56,7 @@ def get_sound_path(name: str) -> Path | None:
         ref = importlib.resources.files("plate_spinner.sounds") / f"{name}.wav"
         with importlib.resources.as_file(ref) as path:
             return Path(path) if path.exists() else None
-    except Exception:
+    except OSError:
         return None
 
 
