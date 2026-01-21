@@ -10,7 +10,7 @@ def create_app(db: Database) -> FastAPI:
     app = FastAPI(title="Plate-Spinner Daemon")
 
     @app.post("/events")
-    async def post_event(event: HookEvent):
+    async def post_event(event: HookEvent) -> dict:
         now = datetime.now(timezone.utc).isoformat()
 
         existing = db.execute(
