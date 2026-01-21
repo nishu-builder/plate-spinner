@@ -1,0 +1,25 @@
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "[ \"$PLATE_SPINNER\" = \"1\" ] && ~/.plate-spinner/hooks/post-tool-use.sh || true"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "[ \"$PLATE_SPINNER\" = \"1\" ] && ~/.plate-spinner/hooks/stop.sh || true"
+          }
+        ]
+      }
+    ]
+  }
+}
