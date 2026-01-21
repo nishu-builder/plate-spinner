@@ -30,56 +30,54 @@ async def play_sound(sound_name: str) -> None:
         pass
 
 
+STATUS_ICONS = {
+    "starting": ".",
+    "running": ">",
+    "idle": "-",
+    "awaiting_input": "?",
+    "awaiting_approval": "!",
+    "error": "X",
+    "closed": "x",
+}
+
+
+def format_session_line(session: dict, index: int) -> str:
+    status = session["status"]
+    folder = session["project_path"].rstrip("/").split("/")[-1]
+    branch = session.get("git_branch") or ""
+    todo = session.get("todo_progress") or ""
+    summary = session.get("summary") or ""
+
+    if branch:
+        label = f"{folder}/{branch}"
+    else:
+        label = folder
+    if len(label) > 25:
+        label = label[:22] + "..."
+
+    icon = STATUS_ICONS.get(status, " ")
+    line = f"[{index}] {icon} {label:<25} {status}"
+    if todo:
+        line += f"  [{todo}]"
+    if summary:
+        line += f"  {summary}"
+    return line
+
+
 class SessionWidget(Static):
-    def __init__(self, session: dict, index: int) -> None:
+    def __init__(self, session: dict, index: int, widget_id: str | None = None) -> None:
         self.session = session
         self.index = index
-        super().__init__()
+        super().__init__(format_session_line(session, index), id=widget_id)
 
-    def compose(self) -> ComposeResult:
-        status = self.session["status"]
-        folder = self.session["project_path"].rstrip("/").split("/")[-1]
-        branch = self.session.get("git_branch") or ""
-        todo = self.session.get("todo_progress") or ""
-        summary = self.session.get("summary") or ""
-
-        if branch:
-            label = f"{folder}/{branch}"
-        else:
-            label = folder
-        if len(label) > 25:
-            label = label[:22] + "..."
-
-        status_icons = {
-            "starting": ".",
-            "running": ">",
-            "idle": "-",
-            "awaiting_input": "?",
-            "awaiting_approval": "!",
-            "error": "X",
-            "closed": "x",
-        }
-        icon = status_icons.get(status, " ")
-
-        line = f"[{self.index}] {icon} {label:<25} {status}"
-        if todo:
-            line += f"  [{todo}]"
-        if summary:
-            line += f"  {summary}"
-        yield Static(line)
+    def update_session(self, session: dict, index: int) -> None:
+        self.session = session
+        self.index = index
+        self.update(format_session_line(session, index))
 
 
-class SessionGroup(Static):
-    def __init__(self, title: str, sessions: list[dict], start_index: int) -> None:
-        self.title = title
-        self.sessions = sessions
-        self.start_index = start_index
-        super().__init__()
-
-    def compose(self) -> ComposeResult:
-        yield Static(f"\n{self.title}", classes="group-title")
-        for i, session in enumerate(self.sessions):
-            yield SessionWidget(session, self.start_index + i + 1)
+class GroupTitle(Static):
+    pass
 
 
 STATUSES = ["awaiting_input", "awaiting_approval", "error", "idle", "closed"]
@@ -318,10 +316,11 @@ class PlateSpinnerApp(App):
 
     def render_sessions(self) -> None:
         main = self.query_one("#main")
-        main.remove_children()
 
         if not self.sessions:
-            main.mount(Static("\nNo active sessions.\n\nRun 'sp run' to start a tracked session."))
+            if not main.query("Static#empty-message"):
+                main.remove_children()
+                main.mount(Static("\nNo active sessions.\n\nRun 'sp run' to start a tracked session.", id="empty-message"))
             self.sub_title = ""
             self.display_order = []
             return
@@ -329,22 +328,42 @@ class PlateSpinnerApp(App):
         open_sessions = [s for s in self.sessions if s["status"] != "closed"]
         closed_sessions = [s for s in self.sessions if s["status"] == "closed"]
 
-        # Sort open: needs attention first (not running), then running
         needs_attention = [s for s in open_sessions if s["status"] != "running"]
         running = [s for s in open_sessions if s["status"] == "running"]
         open_sorted = needs_attention + running
 
-        self.display_order = open_sorted + closed_sessions
+        new_display_order = open_sorted + closed_sessions
+        new_session_ids = [s["session_id"] for s in new_display_order]
+        old_session_ids = [s["session_id"] for s in self.display_order]
 
         attention_count = len(needs_attention)
         self.sub_title = f"{attention_count} need attention" if attention_count else ""
 
-        idx = 0
+        if new_session_ids == old_session_ids and not main.query("Static#empty-message"):
+            for i, session in enumerate(new_display_order):
+                widget_id = f"session-{session['session_id']}"
+                try:
+                    widget = main.query_one(f"#{widget_id}", SessionWidget)
+                    widget.update_session(session, i + 1)
+                except Exception:
+                    pass
+            self.display_order = new_display_order
+            return
+
+        main.remove_children()
+        self.display_order = new_display_order
+
+        idx = 1
         if open_sorted:
-            main.mount(SessionGroup("OPEN", open_sorted, idx))
-            idx += len(open_sorted)
+            main.mount(GroupTitle("\nOPEN", classes="group-title", id="group-open"))
+            for session in open_sorted:
+                main.mount(SessionWidget(session, idx, widget_id=f"session-{session['session_id']}"))
+                idx += 1
         if closed_sessions:
-            main.mount(SessionGroup("CLOSED", closed_sessions, idx))
+            main.mount(GroupTitle("\nCLOSED", classes="group-title", id="group-closed"))
+            for session in closed_sessions:
+                main.mount(SessionWidget(session, idx, widget_id=f"session-{session['session_id']}"))
+                idx += 1
 
     def _reset_attention_subtitle(self) -> None:
         count = len([s for s in self.sessions if s["status"] in ("awaiting_input", "awaiting_approval", "error", "idle")])
