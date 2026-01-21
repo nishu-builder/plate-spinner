@@ -240,6 +240,7 @@ class PlateSpinnerApp(App):
     BINDINGS = [
         Binding("q", "quit", "Quit"),
         Binding("r", "refresh", "Refresh"),
+        Binding("shift+r", "toggle_closed_prompt", "Close/Open"),
         Binding("s", "sound_settings", "Sounds"),
         Binding("x", "dismiss_prompt", "Dismiss"),
         Binding("1", "jump(1)", "Jump 1", show=False),
@@ -253,7 +254,7 @@ class PlateSpinnerApp(App):
         Binding("9", "jump(9)", "Jump 9", show=False),
     ]
 
-    dismiss_mode: bool = False
+    pending_action: str | None = None  # "dismiss" or "toggle"
 
     def __init__(self, daemon_url: str = "http://localhost:7890") -> None:
         super().__init__()
@@ -345,11 +346,30 @@ class PlateSpinnerApp(App):
         if closed_sessions:
             main.mount(SessionGroup("CLOSED", closed_sessions, idx))
 
+    def _reset_attention_subtitle(self) -> None:
+        count = len([s for s in self.sessions if s["status"] in ("awaiting_input", "awaiting_approval", "error", "idle")])
+        self.sub_title = f"{count} need attention" if count else ""
+
+    def _cancel_pending_action(self) -> None:
+        if self.pending_action:
+            self.pending_action = None
+            self._reset_attention_subtitle()
+
+    def on_key(self, event) -> None:
+        if self.pending_action and event.key not in "123456789":
+            self._cancel_pending_action()
+
     def action_jump(self, index: int) -> None:
-        if self.dismiss_mode:
-            self.dismiss_mode = False
-            self.sub_title = f"{len([s for s in self.sessions if s['status'] in ('awaiting_input', 'awaiting_approval', 'error', 'idle')])} need attention" if self.sessions else ""
+        if self.pending_action == "dismiss":
+            self.pending_action = None
+            self._reset_attention_subtitle()
             asyncio.create_task(self._dismiss_session(index))
+            return
+
+        if self.pending_action == "toggle":
+            self.pending_action = None
+            self._reset_attention_subtitle()
+            asyncio.create_task(self._toggle_session(index))
             return
 
         if index > len(self.display_order):
@@ -366,8 +386,15 @@ class PlateSpinnerApp(App):
         if not self.display_order:
             self.notify("No sessions to dismiss", severity="warning")
             return
-        self.dismiss_mode = True
+        self.pending_action = "dismiss"
         self.sub_title = "Press 1-9 to dismiss session, any other key to cancel"
+
+    def action_toggle_closed_prompt(self) -> None:
+        if not self.display_order:
+            self.notify("No sessions to toggle", severity="warning")
+            return
+        self.pending_action = "toggle"
+        self.sub_title = "Press 1-9 to close/reopen session, any other key to cancel"
 
     async def _dismiss_session(self, index: int) -> None:
         if index > len(self.display_order):
@@ -387,6 +414,27 @@ class PlateSpinnerApp(App):
                     self.notify("Failed to dismiss session", severity="error")
         except httpx.RequestError:
             self.notify("Failed to dismiss session", severity="error")
+
+    async def _toggle_session(self, index: int) -> None:
+        if index > len(self.display_order):
+            self.notify("No session at that index", severity="warning")
+            return
+
+        session = self.display_order[index - 1]
+        session_id = session["session_id"]
+        was_closed = session["status"] == "closed"
+
+        try:
+            async with httpx.AsyncClient() as client:
+                response = await client.patch(f"{self.daemon_url}/sessions/{session_id}/toggle-closed")
+                if response.status_code == 200:
+                    action = "Reopened" if was_closed else "Closed"
+                    self.notify(f"{action} session")
+                    await self.action_refresh()
+                else:
+                    self.notify("Failed to toggle session", severity="error")
+        except httpx.RequestError:
+            self.notify("Failed to toggle session", severity="error")
 
 def run() -> str | None:
     app = PlateSpinnerApp()

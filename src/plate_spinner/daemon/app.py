@@ -3,8 +3,97 @@ from datetime import datetime, timezone
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 
+from pydantic import BaseModel
+
 from .db import Database
 from .models import HookEvent, SessionStatus
+from .summarizer import summarize_session
+
+
+def _determine_status(event: HookEvent) -> SessionStatus:
+    if event.event_type == "stop":
+        return SessionStatus.ERROR if event.error else SessionStatus.IDLE
+    if event.event_type in ("session_start", "tool_start"):
+        return SessionStatus.RUNNING
+    return SessionStatus.from_tool(event.tool_name or "")
+
+
+def _upsert_session(db: Database, event: HookEvent, status: SessionStatus, now: str) -> bool:
+    existing = db.execute(
+        "SELECT session_id FROM sessions WHERE session_id = ?",
+        (event.session_id,)
+    ).fetchone()
+
+    if not existing:
+        placeholder_id = f"pending:{event.project_path}"
+        db.execute("DELETE FROM sessions WHERE session_id = ?", (placeholder_id,))
+        db.execute(
+            """INSERT INTO sessions
+               (session_id, project_path, transcript_path, git_branch, status,
+                last_event_type, last_tool, created_at, updated_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (event.session_id, event.project_path,
+             event.transcript_path, event.git_branch, status.value, event.event_type, event.tool_name, now, now)
+        )
+    else:
+        db.execute(
+            """UPDATE sessions SET
+               status = ?, last_event_type = ?,
+               last_tool = COALESCE(?, last_tool),
+               transcript_path = COALESCE(?, transcript_path),
+               git_branch = COALESCE(?, git_branch),
+               updated_at = ?
+               WHERE session_id = ?""",
+            (status.value, event.event_type, event.tool_name,
+             event.transcript_path, event.git_branch, now, event.session_id)
+        )
+    return existing is not None
+
+
+def _handle_todo_write(db: Database, event: HookEvent, now: str) -> None:
+    if event.tool_name != "TodoWrite" or not event.tool_params:
+        return
+    todos = event.tool_params.get("todos", [])
+    if todos:
+        db.execute(
+            """INSERT OR REPLACE INTO todos (session_id, todos_json, updated_at)
+               VALUES (?, ?, ?)""",
+            (event.session_id, json.dumps(todos), now)
+        )
+
+
+def _maybe_summarize(db: Database, event: HookEvent, status: SessionStatus) -> None:
+    should_summarize = status in (SessionStatus.AWAITING_INPUT, SessionStatus.AWAITING_APPROVAL, SessionStatus.IDLE)
+    if not should_summarize and event.event_type == "tool_call":
+        event_count = db.execute(
+            "SELECT COUNT(*) FROM events WHERE session_id = ?",
+            (event.session_id,)
+        ).fetchone()[0]
+        should_summarize = event_count > 0 and event_count % 5 == 0
+
+    if not should_summarize:
+        return
+
+    try:
+        transcript = event.transcript_path
+        if not transcript:
+            row = db.execute(
+                "SELECT transcript_path FROM sessions WHERE session_id = ?",
+                (event.session_id,)
+            ).fetchone()
+            transcript = row[0] if row else None
+        summary = summarize_session(transcript)
+        if summary:
+            db.execute(
+                "UPDATE sessions SET summary = ? WHERE session_id = ?",
+                (summary, event.session_id)
+            )
+    except Exception:
+        pass
+
+
+class RegisterRequest(BaseModel):
+    project_path: str
 
 
 class ConnectionManager:
@@ -24,7 +113,7 @@ class ConnectionManager:
         for connection in self.connections:
             try:
                 await connection.send_json(message)
-            except Exception:
+            except (WebSocketDisconnect, RuntimeError, ConnectionError):
                 dead.append(connection)
         for conn in dead:
             self.disconnect(conn)
@@ -41,62 +130,70 @@ def create_app(db: Database) -> FastAPI:
     @app.post("/events")
     async def post_event(event: HookEvent) -> dict:
         now = datetime.now(timezone.utc).isoformat()
+        status = _determine_status(event)
 
-        existing = db.execute(
-            "SELECT session_id FROM sessions WHERE session_id = ?",
-            (event.session_id,)
-        ).fetchone()
-
-        if event.event_type == "stop":
-            status = SessionStatus.ERROR if event.error else SessionStatus.IDLE
-        else:
-            status = SessionStatus.from_tool(event.tool_name or "")
-
-        if existing:
-            db.execute(
-                """UPDATE sessions SET
-                   status = ?, last_event_type = ?, last_tool = ?,
-                   tmux_pane = COALESCE(?, tmux_pane), updated_at = ?
-                   WHERE session_id = ?""",
-                (status.value, event.event_type, event.tool_name,
-                 event.tmux_pane, now, event.session_id)
-            )
-        else:
-            db.execute(
-                """INSERT INTO sessions
-                   (session_id, project_path, tmux_pane, status,
-                    last_event_type, last_tool, created_at, updated_at)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
-                (event.session_id, event.project_path, event.tmux_pane,
-                 status.value, event.event_type, event.tool_name, now, now)
-            )
-
-        if event.tool_name == "TodoWrite" and event.tool_params:
-            todos = event.tool_params.get("todos", [])
-            if todos:
-                todos_json = json.dumps(todos)
-                db.execute(
-                    """INSERT OR REPLACE INTO todos (session_id, todos_json, updated_at)
-                       VALUES (?, ?, ?)""",
-                    (event.session_id, todos_json, now)
-                )
+        _upsert_session(db, event, status, now)
+        _handle_todo_write(db, event, now)
 
         db.execute(
             """INSERT INTO events (session_id, event_type, payload, created_at)
                VALUES (?, ?, ?, ?)""",
             (event.session_id, event.event_type, event.model_dump_json(), now)
         )
+
+        _maybe_summarize(db, event, status)
         db.commit()
 
         await manager.broadcast({"type": "session_update", "session_id": event.session_id})
-
         return {"status": "ok"}
+
+    @app.post("/sessions/register")
+    async def register_session(req: RegisterRequest) -> dict:
+        now = datetime.now(timezone.utc).isoformat()
+        placeholder_id = f"pending:{req.project_path}"
+
+        existing = db.execute(
+            "SELECT session_id FROM sessions WHERE session_id = ?",
+            (placeholder_id,)
+        ).fetchone()
+
+        if not existing:
+            db.execute(
+                """INSERT INTO sessions
+                   (session_id, project_path, status, created_at, updated_at)
+                   VALUES (?, ?, ?, ?, ?)""",
+                (placeholder_id, req.project_path, "starting", now, now)
+            )
+            db.commit()
+            await manager.broadcast({"type": "session_update", "session_id": placeholder_id})
+
+        return {"status": "ok", "placeholder_id": placeholder_id}
+
+    @app.post("/sessions/stopped")
+    async def mark_stopped(req: RegisterRequest) -> dict:
+        now = datetime.now(timezone.utc).isoformat()
+        rows = db.execute(
+            """SELECT session_id FROM sessions
+               WHERE project_path = ? AND status NOT IN ('closed', 'error')""",
+            (req.project_path,)
+        ).fetchall()
+
+        for row in rows:
+            session_id = row[0]
+            db.execute(
+                "UPDATE sessions SET status = ?, updated_at = ? WHERE session_id = ?",
+                (SessionStatus.CLOSED.value, now, session_id)
+            )
+            await manager.broadcast({"type": "session_update", "session_id": session_id})
+
+        db.commit()
+        return {"status": "ok", "count": len(rows)}
 
     @app.get("/sessions")
     async def get_sessions() -> list[dict]:
         rows = db.execute(
-            """SELECT s.session_id, s.project_path, s.tmux_pane, s.status,
-                      s.last_event_type, s.last_tool, s.created_at, s.updated_at,
+            """SELECT s.session_id, s.project_path, s.git_branch, s.status,
+                      s.last_event_type, s.last_tool, s.summary, s.created_at, s.updated_at,
                       t.todos_json
                FROM sessions s
                LEFT JOIN todos t ON s.session_id = t.session_id
@@ -115,6 +212,35 @@ def create_app(db: Database) -> FastAPI:
                 d["todo_progress"] = None
             result.append(d)
         return result
+
+    @app.delete("/sessions/{session_id}")
+    async def delete_session(session_id: str) -> dict:
+        db.execute("DELETE FROM todos WHERE session_id = ?", (session_id,))
+        db.execute("DELETE FROM events WHERE session_id = ?", (session_id,))
+        db.execute("DELETE FROM sessions WHERE session_id = ?", (session_id,))
+        db.commit()
+        await manager.broadcast({"type": "session_deleted", "session_id": session_id})
+        return {"status": "ok"}
+
+    @app.patch("/sessions/{session_id}/toggle-closed")
+    async def toggle_closed(session_id: str) -> dict:
+        now = datetime.now(timezone.utc).isoformat()
+        row = db.execute(
+            "SELECT status FROM sessions WHERE session_id = ?",
+            (session_id,)
+        ).fetchone()
+        if not row:
+            return {"status": "error", "message": "Session not found"}
+
+        current = row[0]
+        new_status = SessionStatus.IDLE.value if current == SessionStatus.CLOSED.value else SessionStatus.CLOSED.value
+        db.execute(
+            "UPDATE sessions SET status = ?, updated_at = ? WHERE session_id = ?",
+            (new_status, now, session_id)
+        )
+        db.commit()
+        await manager.broadcast({"type": "session_update", "session_id": session_id})
+        return {"status": "ok", "new_status": new_status}
 
     @app.websocket("/ws")
     async def websocket_endpoint(websocket: WebSocket) -> None:
