@@ -15,14 +15,18 @@ class ConnectionManager:
         self.connections.append(websocket)
 
     def disconnect(self, websocket: WebSocket) -> None:
-        self.connections.remove(websocket)
+        if websocket in self.connections:
+            self.connections.remove(websocket)
 
     async def broadcast(self, message: dict) -> None:
+        dead: list[WebSocket] = []
         for connection in self.connections:
             try:
                 await connection.send_json(message)
             except Exception:
-                pass
+                dead.append(connection)
+        for conn in dead:
+            self.disconnect(conn)
 
 
 def create_app(db: Database) -> FastAPI:
