@@ -1,3 +1,4 @@
+import json
 from datetime import datetime, timezone
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
@@ -70,6 +71,16 @@ def create_app(db: Database) -> FastAPI:
                  status.value, event.event_type, event.tool_name, now, now)
             )
 
+        if event.tool_name == "TodoWrite" and event.tool_params:
+            todos = event.tool_params.get("todos", [])
+            if todos:
+                todos_json = json.dumps(todos)
+                db.execute(
+                    """INSERT OR REPLACE INTO todos (session_id, todos_json, updated_at)
+                       VALUES (?, ?, ?)""",
+                    (event.session_id, todos_json, now)
+                )
+
         db.execute(
             """INSERT INTO events (session_id, event_type, payload, created_at)
                VALUES (?, ?, ?, ?)""",
@@ -84,11 +95,26 @@ def create_app(db: Database) -> FastAPI:
     @app.get("/sessions")
     async def get_sessions() -> list[dict]:
         rows = db.execute(
-            """SELECT session_id, project_path, tmux_pane, status,
-                      last_event_type, last_tool, created_at, updated_at
-               FROM sessions ORDER BY updated_at DESC"""
+            """SELECT s.session_id, s.project_path, s.tmux_pane, s.status,
+                      s.last_event_type, s.last_tool, s.created_at, s.updated_at,
+                      t.todos_json
+               FROM sessions s
+               LEFT JOIN todos t ON s.session_id = t.session_id
+               ORDER BY s.updated_at DESC"""
         ).fetchall()
-        return [dict(row) for row in rows]
+
+        result = []
+        for row in rows:
+            d = dict(row)
+            todos_json = d.pop("todos_json", None)
+            if todos_json:
+                todos = json.loads(todos_json)
+                completed = sum(1 for t in todos if t.get("status") == "completed")
+                d["todo_progress"] = f"{completed}/{len(todos)}"
+            else:
+                d["todo_progress"] = None
+            result.append(d)
+        return result
 
     @app.websocket("/ws")
     async def websocket_endpoint(websocket: WebSocket) -> None:

@@ -59,3 +59,29 @@ def test_health_endpoint():
         assert response.json() == {"status": "ok"}
 
         db.close()
+
+
+def test_todowrite_stores_todos():
+    with tempfile.TemporaryDirectory() as tmpdir:
+        db = Database(Path(tmpdir) / "test.db")
+        app = create_app(db)
+        client = TestClient(app)
+
+        client.post("/events", json={
+            "session_id": "abc123",
+            "project_path": "/path/to/project",
+            "event_type": "tool_call",
+            "tool_name": "TodoWrite",
+            "tool_params": {
+                "todos": [
+                    {"content": "Task 1", "status": "completed"},
+                    {"content": "Task 2", "status": "in_progress"},
+                    {"content": "Task 3", "status": "pending"},
+                ]
+            }
+        })
+
+        sessions = client.get("/sessions").json()
+        assert sessions[0]["todo_progress"] == "1/3"
+
+        db.close()
