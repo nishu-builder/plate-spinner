@@ -7,8 +7,7 @@ if command -v jq &>/dev/null; then
   PAYLOAD=$(echo "$INPUT" | jq -c '{
     session_id: .session_id,
     project_path: .cwd,
-    event_type: "stop",
-    tmux_pane: (env.TMUX_PANE // null)
+    event_type: "stop"
   }')
 else
   PAYLOAD="$INPUT"

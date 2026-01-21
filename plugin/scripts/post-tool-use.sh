@@ -7,7 +7,7 @@ curl -s --connect-timeout 1 http://localhost:7890/health >/dev/null 2>&1 || exit
 
 # Transform stdin JSON to match HookEvent model
 # stdin has: session_id, cwd (as project_path), hook_event_name, tool_name, tool_input
-# HookEvent needs: session_id, project_path, event_type, tool_name, tool_params, tmux_pane
+# HookEvent needs: session_id, project_path, event_type, tool_name, tool_params
 
 if command -v jq &>/dev/null; then
   PAYLOAD=$(echo "$INPUT" | jq -c '{
@@ -15,8 +15,7 @@ if command -v jq &>/dev/null; then
     project_path: .cwd,
     event_type: "tool_call",
     tool_name: .tool_name,
-    tool_params: .tool_input,
-    tmux_pane: (env.TMUX_PANE // null)
+    tool_params: .tool_input
   }')
 else
   # Fallback: forward as-is, daemon should handle
