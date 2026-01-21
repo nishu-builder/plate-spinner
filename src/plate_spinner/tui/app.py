@@ -71,6 +71,7 @@ class PlateSpinnerApp(App):
         super().__init__()
         self.daemon_url = daemon_url
         self.sessions: list[dict] = []
+        self.display_order: list[dict] = []
 
     def compose(self) -> ComposeResult:
         yield Header()
@@ -99,6 +100,8 @@ class PlateSpinnerApp(App):
                           ("awaiting_input", "awaiting_approval", "error", "idle")]
         running = [s for s in self.sessions if s["status"] == "running"]
 
+        self.display_order = needs_attention + running
+
         attention_count = len(needs_attention)
         self.sub_title = f"{attention_count} need attention" if attention_count else ""
 
@@ -110,8 +113,8 @@ class PlateSpinnerApp(App):
             main.mount(SessionGroup("RUNNING", running, idx))
 
     def action_jump(self, index: int) -> None:
-        if index <= len(self.sessions):
-            session = self.sessions[index - 1]
+        if index <= len(self.display_order):
+            session = self.display_order[index - 1]
             pane = session.get("tmux_pane")
             if pane:
                 import subprocess
