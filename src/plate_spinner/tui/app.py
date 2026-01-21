@@ -1,4 +1,5 @@
 import asyncio
+import importlib.resources
 
 from textual.app import App, ComposeResult
 from textual.containers import VerticalScroll
@@ -7,6 +8,24 @@ from textual.binding import Binding
 
 import httpx
 import websockets
+
+from ..config import load_config
+
+
+async def play_sound(sound_name: str) -> None:
+    if sound_name == "none":
+        return
+    try:
+        ref = importlib.resources.files("plate_spinner.sounds") / f"{sound_name}.wav"
+        with importlib.resources.as_file(ref) as path:
+            if path.exists():
+                await asyncio.create_subprocess_exec(
+                    "afplay", str(path),
+                    stdout=asyncio.subprocess.DEVNULL,
+                    stderr=asyncio.subprocess.DEVNULL,
+                )
+    except OSError:
+        pass
 
 
 class SessionWidget(Static):
@@ -17,18 +36,35 @@ class SessionWidget(Static):
 
     def compose(self) -> ComposeResult:
         status = self.session["status"]
-        project = self.session["project_path"].rstrip("/").split("/")[-1]
+        folder = self.session["project_path"].rstrip("/").split("/")[-1]
+        branch = self.session.get("git_branch") or ""
+        todo = self.session.get("todo_progress") or ""
+        summary = self.session.get("summary") or ""
+
+        if branch:
+            label = f"{folder}/{branch}"
+        else:
+            label = folder
+        if len(label) > 25:
+            label = label[:22] + "..."
 
         status_icons = {
+            "starting": ".",
             "running": ">",
             "idle": "-",
             "awaiting_input": "?",
             "awaiting_approval": "!",
             "error": "X",
+            "closed": "x",
         }
         icon = status_icons.get(status, " ")
 
-        yield Static(f"[{self.index}] {icon} {project:<20} {status}")
+        line = f"[{self.index}] {icon} {label:<25} {status}"
+        if todo:
+            line += f"  [{todo}]"
+        if summary:
+            line += f"  {summary}"
+        yield Static(line)
 
 
 class SessionGroup(Static):
@@ -58,7 +94,7 @@ class PlateSpinnerApp(App):
     BINDINGS = [
         Binding("q", "quit", "Quit"),
         Binding("r", "refresh", "Refresh"),
-        Binding("d", "dismiss", "Dismiss"),
+        Binding("x", "dismiss_prompt", "Dismiss"),
         Binding("1", "jump(1)", "Jump 1", show=False),
         Binding("2", "jump(2)", "Jump 2", show=False),
         Binding("3", "jump(3)", "Jump 3", show=False),
@@ -70,11 +106,15 @@ class PlateSpinnerApp(App):
         Binding("9", "jump(9)", "Jump 9", show=False),
     ]
 
+    dismiss_mode: bool = False
+
     def __init__(self, daemon_url: str = "http://localhost:7890") -> None:
         super().__init__()
         self.daemon_url = daemon_url
         self.sessions: list[dict] = []
         self.display_order: list[dict] = []
+        self.previous_statuses: dict[str, str] = {}
+        self.config = load_config()
 
     def compose(self) -> ComposeResult:
         yield Header()
@@ -91,9 +131,9 @@ class PlateSpinnerApp(App):
         while True:
             try:
                 async with websockets.connect(ws_url) as ws:
-                    async for message in ws:
+                    async for _ in ws:
                         await self.action_refresh()
-            except Exception:
+            except (OSError, websockets.WebSocketException):
                 pass
             await asyncio.sleep(2)
 
@@ -102,8 +142,20 @@ class PlateSpinnerApp(App):
             async with httpx.AsyncClient() as client:
                 response = await client.get(f"{self.daemon_url}/sessions")
                 self.sessions = response.json()
-        except Exception:
+        except httpx.RequestError:
             self.sessions = []
+
+        for session in self.sessions:
+            session_id = session["session_id"]
+            current_status = session["status"]
+            previous_status = self.previous_statuses.get(session_id)
+
+            if previous_status == "running" and current_status != "running":
+                if self.config.sounds.enabled:
+                    sound_name = getattr(self.config.sounds, current_status, "none")
+                    asyncio.create_task(play_sound(sound_name))
+
+            self.previous_statuses[session_id] = current_status
 
         self.render_sessions()
 
@@ -111,34 +163,75 @@ class PlateSpinnerApp(App):
         main = self.query_one("#main")
         main.remove_children()
 
-        needs_attention = [s for s in self.sessions if s["status"] in
-                          ("awaiting_input", "awaiting_approval", "error", "idle")]
-        running = [s for s in self.sessions if s["status"] == "running"]
+        if not self.sessions:
+            main.mount(Static("\nNo active sessions.\n\nRun 'sp run' to start a tracked session."))
+            self.sub_title = ""
+            self.display_order = []
+            return
 
-        self.display_order = needs_attention + running
+        open_sessions = [s for s in self.sessions if s["status"] != "closed"]
+        closed_sessions = [s for s in self.sessions if s["status"] == "closed"]
+
+        # Sort open: needs attention first (not running), then running
+        needs_attention = [s for s in open_sessions if s["status"] != "running"]
+        running = [s for s in open_sessions if s["status"] == "running"]
+        open_sorted = needs_attention + running
+
+        self.display_order = open_sorted + closed_sessions
 
         attention_count = len(needs_attention)
         self.sub_title = f"{attention_count} need attention" if attention_count else ""
 
         idx = 0
-        if needs_attention:
-            main.mount(SessionGroup("NEEDS ATTENTION", needs_attention, idx))
-            idx += len(needs_attention)
-        if running:
-            main.mount(SessionGroup("RUNNING", running, idx))
+        if open_sorted:
+            main.mount(SessionGroup("OPEN", open_sorted, idx))
+            idx += len(open_sorted)
+        if closed_sessions:
+            main.mount(SessionGroup("CLOSED", closed_sessions, idx))
 
     def action_jump(self, index: int) -> None:
-        if index <= len(self.display_order):
-            session = self.display_order[index - 1]
-            pane = session.get("tmux_pane")
-            if pane:
-                import subprocess
-                subprocess.run(["tmux", "select-pane", "-t", pane], check=False)
+        if self.dismiss_mode:
+            self.dismiss_mode = False
+            self.sub_title = f"{len([s for s in self.sessions if s['status'] in ('awaiting_input', 'awaiting_approval', 'error', 'idle')])} need attention" if self.sessions else ""
+            asyncio.create_task(self._dismiss_session(index))
+            return
 
-    def action_dismiss(self) -> None:
-        pass
+        if index > len(self.display_order):
+            self.notify("No session at that index", severity="warning")
+            return
 
+        session = self.display_order[index - 1]
+        if session["status"] == "starting":
+            self.notify("Session still starting", severity="warning")
+            return
+        self.exit(result=f"resume:{session['session_id']}:{session['project_path']}")
 
-def run() -> None:
+    def action_dismiss_prompt(self) -> None:
+        if not self.display_order:
+            self.notify("No sessions to dismiss", severity="warning")
+            return
+        self.dismiss_mode = True
+        self.sub_title = "Press 1-9 to dismiss session, any other key to cancel"
+
+    async def _dismiss_session(self, index: int) -> None:
+        if index > len(self.display_order):
+            self.notify("No session at that index", severity="warning")
+            return
+
+        session = self.display_order[index - 1]
+        session_id = session["session_id"]
+
+        try:
+            async with httpx.AsyncClient() as client:
+                response = await client.delete(f"{self.daemon_url}/sessions/{session_id}")
+                if response.status_code == 200:
+                    self.notify("Dismissed session")
+                    await self.action_refresh()
+                else:
+                    self.notify("Failed to dismiss session", severity="error")
+        except httpx.RequestError:
+            self.notify("Failed to dismiss session", severity="error")
+
+def run() -> str | None:
     app = PlateSpinnerApp()
-    app.run()
+    return app.run()
