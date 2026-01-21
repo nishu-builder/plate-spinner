@@ -1,8 +1,6 @@
 import tempfile
 from pathlib import Path
 
-import pytest
-
 from plate_spinner.daemon.db import Database
 
 
@@ -17,3 +15,5 @@ def test_database_creates_tables():
         assert "sessions" in table_names
         assert "todos" in table_names
         assert "events" in table_names
+
+        db.close()

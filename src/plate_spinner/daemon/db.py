@@ -40,15 +40,15 @@ class Database:
         self.conn.row_factory = sqlite3.Row
         self._init_schema()
 
-    def _init_schema(self):
+    def _init_schema(self) -> None:
         self.conn.executescript(SCHEMA)
         self.conn.commit()
 
     def execute(self, sql: str, params: tuple = ()) -> sqlite3.Cursor:
         return self.conn.execute(sql, params)
 
-    def commit(self):
+    def commit(self) -> None:
         self.conn.commit()
 
-    def close(self):
+    def close(self) -> None:
         self.conn.close()
