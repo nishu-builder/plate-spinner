@@ -201,8 +201,14 @@ class PlateSpinnerApp(App):
 
     async def on_mount(self) -> None:
         self.title = "Plate-Spinner"
+        if self.config.theme.name:
+            self.theme = self.config.theme.name
         await self.action_refresh()
         self.run_worker(self.connect_websocket())
+
+    def watch_theme(self, theme: str) -> None:
+        self.config.theme.name = theme
+        save_config(self.config)
 
     async def connect_websocket(self) -> None:
         ws_url = self.daemon_url.replace("http://", "ws://") + "/ws"
