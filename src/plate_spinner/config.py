@@ -1,3 +1,4 @@
+import importlib.resources
 from pathlib import Path
 from typing import Literal
 
@@ -57,3 +58,18 @@ def save_config(config: Config) -> None:
     lines.append(f'name = "{config.theme.name}"')
 
     path.write_text("\n".join(lines) + "\n")
+
+
+def get_sound_path(name: str) -> Path | None:
+    if name == "none":
+        return None
+    try:
+        ref = importlib.resources.files("plate_spinner.sounds") / f"{name}.wav"
+        with importlib.resources.as_file(ref) as path:
+            return Path(path) if path.exists() else None
+    except Exception:
+        return None
+
+
+def get_available_sounds() -> list[str]:
+    return ["chime", "bell", "pop", "ping", "alert", "none"]

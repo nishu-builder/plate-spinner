@@ -1,4 +1,16 @@
-from plate_spinner.config import Config, SoundsConfig, load_config, save_config
+from plate_spinner.config import Config, SoundsConfig, load_config, save_config, get_sound_path
+
+
+def test_get_sound_path():
+    path = get_sound_path("chime")
+    assert path is not None
+    assert path.name == "chime.wav"
+    assert path.exists()
+
+
+def test_get_sound_path_none_returns_none():
+    path = get_sound_path("none")
+    assert path is None
 
 
 def test_config_defaults():
