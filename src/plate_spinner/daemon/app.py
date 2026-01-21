@@ -1,13 +1,37 @@
 from datetime import datetime, timezone
 
-from fastapi import FastAPI
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 
 from .db import Database
 from .models import HookEvent, SessionStatus
 
 
+class ConnectionManager:
+    def __init__(self) -> None:
+        self.connections: list[WebSocket] = []
+
+    async def connect(self, websocket: WebSocket) -> None:
+        await websocket.accept()
+        self.connections.append(websocket)
+
+    def disconnect(self, websocket: WebSocket) -> None:
+        self.connections.remove(websocket)
+
+    async def broadcast(self, message: dict) -> None:
+        for connection in self.connections:
+            try:
+                await connection.send_json(message)
+            except Exception:
+                pass
+
+
 def create_app(db: Database) -> FastAPI:
     app = FastAPI(title="Plate-Spinner Daemon")
+    manager = ConnectionManager()
+
+    @app.get("/health")
+    async def health() -> dict:
+        return {"status": "ok"}
 
     @app.post("/events")
     async def post_event(event: HookEvent) -> dict:
@@ -49,6 +73,8 @@ def create_app(db: Database) -> FastAPI:
         )
         db.commit()
 
+        await manager.broadcast({"type": "session_update", "session_id": event.session_id})
+
         return {"status": "ok"}
 
     @app.get("/sessions")
@@ -59,5 +85,14 @@ def create_app(db: Database) -> FastAPI:
                FROM sessions ORDER BY updated_at DESC"""
         ).fetchall()
         return [dict(row) for row in rows]
+
+    @app.websocket("/ws")
+    async def websocket_endpoint(websocket: WebSocket) -> None:
+        await manager.connect(websocket)
+        try:
+            while True:
+                await websocket.receive_text()
+        except WebSocketDisconnect:
+            manager.disconnect(websocket)
 
     return app

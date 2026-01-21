@@ -46,3 +46,16 @@ def test_ask_user_question_sets_awaiting_input():
         assert sessions[0]["status"] == "awaiting_input"
 
         db.close()
+
+
+def test_health_endpoint():
+    with tempfile.TemporaryDirectory() as tmpdir:
+        db = Database(Path(tmpdir) / "test.db")
+        app = create_app(db)
+        client = TestClient(app)
+
+        response = client.get("/health")
+        assert response.status_code == 200
+        assert response.json() == {"status": "ok"}
+
+        db.close()
