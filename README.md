@@ -2,61 +2,63 @@
 
 Dashboard for managing multiple concurrent Claude Code sessions.
 
-## Problem
-
-When running multiple Claude Code sessions, you lose track of which need input, which are blocked, and which are working. Plate-Spinner provides unified visibility with a terminal UI.
-
-## Install
+## Quick Start
 
 ```bash
-pip install plate-spinner
-sp install
+uv tool install .
+sp install              # Install hooks, prints config to add to ~/.claude/settings.json
+sp run                  # Start tracked session (terminal 1)
+sp run                  # Start another (terminal 2)
+sp                      # Open dashboard (terminal 3)
 ```
-
-Then add the hooks config printed by `sp install` to `~/.claude/settings.json`.
 
 ## Usage
 
-```bash
-# Launch a tracked Claude session
-sp run
+**Dashboard** (`sp`): Shows all sessions in two groups:
+- **OPEN**: Active sessions, sorted with "needs attention" first
+- **CLOSED**: Sessions that have exited
 
-# Open dashboard
-sp
+Press `1-9` to resume a session. Press `x` then `1-9` to dismiss one.
 
-# Other commands
-sp daemon     # Run daemon in foreground
-sp sessions   # List sessions as JSON
+## Session States
+
+| Icon | Status | Trigger |
+|------|--------|---------|
+| `.` | starting | Session registered, no activity yet |
+| `>` | running | Tool executing |
+| `?` | awaiting_input | `AskUserQuestion` called |
+| `!` | awaiting_approval | `ExitPlanMode` called |
+| `-` | idle | Stop event received |
+| `X` | error | Stop event with error |
+| `x` | closed | Session wrapper exited |
+
+AI summaries appear when sessions reach a waiting state (requires `ANTHROPIC_API_KEY`).
+
+## Commands
+
+```
+sp              Dashboard (auto-starts daemon)
+sp run [args]   Launch Claude with tracking
+sp install      Install hooks, print settings config
+sp kill         Stop daemon
+sp sessions     List sessions as JSON
 ```
 
-## How It Works
+## Architecture
 
 ```
-Claude Code Session
-       |
-       | hooks fire on tool calls
-       v
+Claude Code (sp run)
+    | hooks on tool calls
+    v
 ~/.plate-spinner/hooks/*.sh
-       |
-       | POST to localhost:7890
-       v
-   sp daemon (SQLite + WebSocket)
-       |
-       +---> sp tui (real-time updates)
+    | POST localhost:7890
+    v
+Daemon (SQLite + WebSocket) --> TUI
 ```
 
 ## Requirements
 
 - Python 3.11+
 - Claude Code
-- tmux (for jump-to-session)
-- jq (recommended, for JSON transformation)
-
-## Development
-
-```bash
-git clone https://github.com/yourusername/plate-spinner
-cd plate-spinner
-uv sync
-uv run pytest
-```
+- jq (optional, improves hook reliability)
+- `ANTHROPIC_API_KEY` (optional, enables summaries)
