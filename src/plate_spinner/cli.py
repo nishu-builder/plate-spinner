@@ -60,6 +60,43 @@ def cmd_sessions(args: argparse.Namespace) -> None:
         sys.exit(1)
 
 
+def cmd_install(args: argparse.Namespace) -> None:
+    import shutil
+
+    hooks_dir = Path.home() / ".plate-spinner" / "hooks"
+    hooks_dir.mkdir(parents=True, exist_ok=True)
+
+    pkg_dir = Path(__file__).parent.parent.parent / "plugin" / "scripts"
+    for script in ["post-tool-use.sh", "stop.sh"]:
+        src = pkg_dir / script
+        dst = hooks_dir / script
+        if src.exists():
+            shutil.copy(src, dst)
+            dst.chmod(0o755)
+            print(f"Installed {dst}")
+        else:
+            print(f"Warning: {src} not found", file=sys.stderr)
+
+    print("\nAdd to ~/.claude/settings.json:")
+    print(json.dumps({
+        "hooks": {
+            "PostToolUse": [{
+                "matcher": "*",
+                "hooks": [{
+                    "type": "command",
+                    "command": f'[ "$PLATE_SPINNER" = "1" ] && {hooks_dir}/post-tool-use.sh || true'
+                }]
+            }],
+            "Stop": [{
+                "hooks": [{
+                    "type": "command",
+                    "command": f'[ "$PLATE_SPINNER" = "1" ] && {hooks_dir}/stop.sh || true'
+                }]
+            }]
+        }
+    }, indent=2))
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(prog="sp", description="Plate-Spinner")
     subparsers = parser.add_subparsers(dest="command")
@@ -67,6 +104,7 @@ def main() -> None:
     subparsers.add_parser("daemon", help="Run daemon in foreground")
     subparsers.add_parser("tui", help="Launch TUI")
     subparsers.add_parser("sessions", help="List sessions as JSON")
+    subparsers.add_parser("install", help="Install hooks to ~/.plate-spinner")
 
     run_parser = subparsers.add_parser("run", help="Launch Claude with tracking")
     run_parser.add_argument("claude_args", nargs="*", default=[])
@@ -79,6 +117,8 @@ def main() -> None:
         cmd_run(args)
     elif args.command == "sessions":
         cmd_sessions(args)
+    elif args.command == "install":
+        cmd_install(args)
     else:
         cmd_tui(args)
 
