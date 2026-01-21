@@ -1,9 +1,12 @@
+import asyncio
+
 from textual.app import App, ComposeResult
 from textual.containers import VerticalScroll
 from textual.widgets import Footer, Header, Static
 from textual.binding import Binding
 
 import httpx
+import websockets
 
 
 class SessionWidget(Static):
@@ -81,6 +84,18 @@ class PlateSpinnerApp(App):
     async def on_mount(self) -> None:
         self.title = "Plate-Spinner"
         await self.action_refresh()
+        self.run_worker(self.connect_websocket())
+
+    async def connect_websocket(self) -> None:
+        ws_url = self.daemon_url.replace("http://", "ws://") + "/ws"
+        while True:
+            try:
+                async with websockets.connect(ws_url) as ws:
+                    async for message in ws:
+                        await self.action_refresh()
+            except Exception:
+                pass
+            await asyncio.sleep(2)
 
     async def action_refresh(self) -> None:
         try:
