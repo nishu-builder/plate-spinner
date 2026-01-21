@@ -1,6 +1,7 @@
 import argparse
 import json
 import os
+import signal
 import subprocess
 import sys
 import time
@@ -12,6 +13,9 @@ import uvicorn
 from .daemon.app import create_app
 from .daemon.db import Database
 
+DAEMON_PORT = 7890
+DAEMON_URL = f"http://localhost:{DAEMON_PORT}"
+
 
 def get_db_path() -> Path:
     return Path.home() / ".plate-spinner" / "state.db"
@@ -19,67 +23,165 @@ def get_db_path() -> Path:
 
 def daemon_running() -> bool:
     try:
-        httpx.get("http://localhost:7890/health", timeout=1)
+        httpx.get(f"{DAEMON_URL}/health", timeout=1)
         return True
-    except Exception:
+    except httpx.RequestError:
         return False
+
+
+def _ensure_daemon_running() -> None:
+    if daemon_running():
+        return
+    subprocess.Popen(
+        [sys.executable, "-m", "plate_spinner.cli", "daemon"],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        start_new_session=True,
+        env=os.environ.copy(),
+    )
+    time.sleep(1)
 
 
 def cmd_daemon(args: argparse.Namespace) -> None:
     db = Database(get_db_path())
     app = create_app(db)
-    uvicorn.run(app, host="127.0.0.1", port=7890, log_level="warning")
+    uvicorn.run(app, host="127.0.0.1", port=DAEMON_PORT, log_level="warning")
 
 
 def cmd_tui(args: argparse.Namespace) -> None:
-    if not daemon_running():
-        subprocess.Popen(
-            [sys.executable, "-m", "plate_spinner.cli", "daemon"],
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-            start_new_session=True,
-        )
-        time.sleep(1)
-
+    _ensure_daemon_running()
     from .tui.app import run
-    run()
+    result = run()
+
+    if result and str(result).startswith("resume:"):
+        parts = str(result).split(":", 2)
+        session_id = parts[1]
+        project_path = parts[2] if len(parts) > 2 else None
+        if project_path:
+            os.chdir(project_path)
+        env = os.environ.copy()
+        env["PLATE_SPINNER"] = "1"
+        os.execvpe("claude", ["claude", "--resume", session_id], env)
+
+
+def _notify_stopped(project_path: str) -> None:
+    try:
+        httpx.post(
+            f"{DAEMON_URL}/sessions/stopped",
+            json={"project_path": project_path},
+            timeout=2
+        )
+    except httpx.RequestError:
+        pass
 
 
 def cmd_run(args: argparse.Namespace) -> None:
+    _ensure_daemon_running()
     env = os.environ.copy()
     env["PLATE_SPINNER"] = "1"
-    os.execvpe("claude", ["claude"] + args.claude_args, env)
+
+    project_path = os.getcwd()
+
+    pid = os.fork()
+    if pid == 0:
+        os.execvpe("claude", ["claude"] + args.claude_args, env)
+    else:
+        def cleanup(_sig: int, _frame: object) -> None:
+            try:
+                os.kill(pid, signal.SIGTERM)
+            except ProcessLookupError:
+                pass
+            _notify_stopped(project_path)
+            sys.exit(0)
+
+        signal.signal(signal.SIGHUP, cleanup)
+        signal.signal(signal.SIGTERM, cleanup)
+        signal.signal(signal.SIGINT, cleanup)
+
+        try:
+            os.waitpid(pid, 0)
+        except ChildProcessError:
+            pass
+        _notify_stopped(project_path)
 
 
 def cmd_sessions(args: argparse.Namespace) -> None:
     try:
-        response = httpx.get("http://localhost:7890/sessions", timeout=5)
+        response = httpx.get(f"{DAEMON_URL}/sessions", timeout=5)
         print(json.dumps(response.json(), indent=2))
-    except Exception as e:
+    except httpx.RequestError as e:
         print(f"Error: {e}", file=sys.stderr)
         sys.exit(1)
 
 
-def cmd_install(args: argparse.Namespace) -> None:
-    import shutil
+def cmd_kill(args: argparse.Namespace) -> None:
+    # Try multiple patterns to catch daemon however it was started
+    patterns = ["plate_spinner.cli daemon", "sp daemon"]
+    killed = False
+    for pattern in patterns:
+        result = subprocess.run(["pkill", "-f", pattern], capture_output=True)
+        if result.returncode == 0:
+            killed = True
+    if killed:
+        print("Daemon stopped")
+    else:
+        print("No daemon running")
 
+
+SCRIPTS_DIR = Path(__file__).parent.parent.parent / "plugin" / "scripts"
+HOOK_SCRIPT_NAMES = ["session-start.sh", "pre-tool-use.sh", "post-tool-use.sh", "stop.sh"]
+
+
+def cmd_config(args: argparse.Namespace) -> None:
+    from .config import get_config_path, load_config, save_config, Config
+    import tomllib
+
+    if args.config_command == "path":
+        print(get_config_path())
+    elif args.config_command == "export":
+        config = load_config()
+        path = get_config_path()
+        if path.exists():
+            print(path.read_text())
+        else:
+            save_config(config)
+            print(path.read_text())
+    elif args.config_command == "import":
+        data = tomllib.loads(Path(args.file).read_text())
+        config = Config.model_validate(data)
+        save_config(config)
+        print(f"Imported config from {args.file}")
+    else:
+        print(f"Config path: {get_config_path()}")
+
+
+def cmd_install(args: argparse.Namespace) -> None:
     hooks_dir = Path.home() / ".plate-spinner" / "hooks"
     hooks_dir.mkdir(parents=True, exist_ok=True)
 
-    pkg_dir = Path(__file__).parent.parent.parent / "plugin" / "scripts"
-    for script in ["post-tool-use.sh", "stop.sh"]:
-        src = pkg_dir / script
-        dst = hooks_dir / script
-        if src.exists():
-            shutil.copy(src, dst)
-            dst.chmod(0o755)
-            print(f"Installed {dst}")
-        else:
-            print(f"Warning: {src} not found", file=sys.stderr)
+    for name in HOOK_SCRIPT_NAMES:
+        src = SCRIPTS_DIR / name
+        dst = hooks_dir / name
+        dst.write_text(src.read_text())
+        dst.chmod(0o755)
+        print(f"Installed {dst}")
 
     print("\nAdd to ~/.claude/settings.json:")
     print(json.dumps({
         "hooks": {
+            "SessionStart": [{
+                "hooks": [{
+                    "type": "command",
+                    "command": f'[ "$PLATE_SPINNER" = "1" ] && {hooks_dir}/session-start.sh || true'
+                }]
+            }],
+            "PreToolUse": [{
+                "matcher": "*",
+                "hooks": [{
+                    "type": "command",
+                    "command": f'[ "$PLATE_SPINNER" = "1" ] && {hooks_dir}/pre-tool-use.sh || true'
+                }]
+            }],
             "PostToolUse": [{
                 "matcher": "*",
                 "hooks": [{
@@ -98,6 +200,12 @@ def cmd_install(args: argparse.Namespace) -> None:
 
 
 def main() -> None:
+    # Handle 'run' specially to pass all args through to claude
+    if len(sys.argv) >= 2 and sys.argv[1] == "run":
+        args = argparse.Namespace(claude_args=sys.argv[2:])
+        cmd_run(args)
+        return
+
     parser = argparse.ArgumentParser(prog="sp", description="Plate-Spinner")
     subparsers = parser.add_subparsers(dest="command")
 
@@ -105,20 +213,28 @@ def main() -> None:
     subparsers.add_parser("tui", help="Launch TUI")
     subparsers.add_parser("sessions", help="List sessions as JSON")
     subparsers.add_parser("install", help="Install hooks to ~/.plate-spinner")
+    subparsers.add_parser("kill", help="Stop the daemon")
+    subparsers.add_parser("run", help="Launch Claude with tracking (all args passed to claude)")
 
-    run_parser = subparsers.add_parser("run", help="Launch Claude with tracking")
-    run_parser.add_argument("claude_args", nargs="*", default=[])
+    config_parser = subparsers.add_parser("config", help="Manage configuration")
+    config_subparsers = config_parser.add_subparsers(dest="config_command")
+    config_subparsers.add_parser("path", help="Print config file path")
+    config_subparsers.add_parser("export", help="Export config to stdout")
+    import_parser = config_subparsers.add_parser("import", help="Import config from file")
+    import_parser.add_argument("file", help="Config file to import")
 
     args = parser.parse_args()
 
     if args.command == "daemon":
         cmd_daemon(args)
-    elif args.command == "run":
-        cmd_run(args)
     elif args.command == "sessions":
         cmd_sessions(args)
     elif args.command == "install":
         cmd_install(args)
+    elif args.command == "kill":
+        cmd_kill(args)
+    elif args.command == "config":
+        cmd_config(args)
     else:
         cmd_tui(args)
 
