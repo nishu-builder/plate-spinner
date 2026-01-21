@@ -2,14 +2,17 @@ import asyncio
 import importlib.resources
 
 from textual.app import App, ComposeResult
-from textual.containers import VerticalScroll
-from textual.widgets import Footer, Header, Static
 from textual.binding import Binding
+from textual.command import Provider, Hits, Hit, DiscoveryHit
+from textual.containers import VerticalScroll
+from textual.screen import ModalScreen
+from textual.widgets import Footer, Header, Static, OptionList
+from textual.widgets.option_list import Option
 
 import httpx
 import websockets
 
-from ..config import load_config
+from ..config import load_config, save_config, get_available_sounds
 
 
 async def play_sound(sound_name: str) -> None:
@@ -80,7 +83,82 @@ class SessionGroup(Static):
             yield SessionWidget(session, self.start_index + i + 1)
 
 
+class SoundCommands(Provider):
+    @property
+    def app(self) -> "PlateSpinnerApp":
+        return self.screen.app  # type: ignore[return-value]
+
+    async def discover(self) -> Hits:
+        for status in ["awaiting_input", "awaiting_approval", "error", "idle", "closed"]:
+            label = status.replace("_", " ").title()
+            yield DiscoveryHit(
+                f"Set sound: {label}",
+                self.action_select_sound,
+                status,
+                help=f"Choose notification sound for {label}",
+            )
+        yield DiscoveryHit(
+            "Toggle sounds",
+            self.action_toggle_sounds,
+            help="Enable or disable all notification sounds",
+        )
+
+    async def search(self, query: str) -> Hits:
+        matcher = self.matcher(query)
+        for status in ["awaiting_input", "awaiting_approval", "error", "idle", "closed"]:
+            label = status.replace("_", " ").title()
+            command = f"Set sound: {label}"
+            score = matcher.match(command)
+            if score > 0:
+                yield Hit(score, command, self.action_select_sound, status, help=f"Choose sound for {label}")
+
+        score = matcher.match("Toggle sounds")
+        if score > 0:
+            enabled = self.app.config.sounds.enabled
+            state = "on" if enabled else "off"
+            yield Hit(score, f"Toggle sounds (currently {state})", self.action_toggle_sounds)
+
+    async def action_toggle_sounds(self) -> None:
+        self.app.config.sounds.enabled = not self.app.config.sounds.enabled
+        save_config(self.app.config)
+        state = "enabled" if self.app.config.sounds.enabled else "disabled"
+        self.app.notify(f"Sounds {state}")
+
+    async def action_select_sound(self, status: str) -> None:
+        self.app.push_screen(SoundPickerScreen(status))
+
+
+class SoundPickerScreen(ModalScreen["PlateSpinnerApp"]):
+    BINDINGS = [("escape", "dismiss", "Cancel")]
+
+    def __init__(self, status: str) -> None:
+        super().__init__()
+        self.status = status
+
+    def compose(self) -> ComposeResult:
+        sounds = get_available_sounds()
+        current = getattr(self.app.config.sounds, self.status, "none")
+        options = [Option(f"{'* ' if s == current else '  '}{s}", id=s) for s in sounds]
+        yield OptionList(*options, id="sound-picker")
+
+    def on_option_list_option_selected(self, event: OptionList.OptionSelected) -> None:
+        sound_name = event.option.id
+        if sound_name is None:
+            return
+        setattr(self.app.config.sounds, self.status, sound_name)
+        save_config(self.app.config)
+
+        if sound_name != "none":
+            asyncio.create_task(play_sound(sound_name))
+
+        label = self.status.replace("_", " ").title()
+        self.app.notify(f"{label} sound set to {sound_name}")
+        self.dismiss()
+
+
 class PlateSpinnerApp(App):
+    COMMANDS = App.COMMANDS | {SoundCommands}
+
     CSS = """
     .group-title {
         color: $text-muted;
