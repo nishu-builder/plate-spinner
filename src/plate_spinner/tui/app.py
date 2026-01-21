@@ -6,8 +6,7 @@ from textual.binding import Binding
 from textual.command import Provider, Hits, Hit, DiscoveryHit
 from textual.containers import VerticalScroll
 from textual.screen import ModalScreen
-from textual.widgets import Footer, Header, Static, OptionList
-from textual.widgets.option_list import Option
+from textual.widgets import Footer, Header, Static
 
 import httpx
 import websockets
@@ -83,77 +82,146 @@ class SessionGroup(Static):
             yield SessionWidget(session, self.start_index + i + 1)
 
 
+STATUSES = ["awaiting_input", "awaiting_approval", "error", "idle", "closed"]
+
+
+class SoundSettingsScreen(ModalScreen["PlateSpinnerApp"]):
+    BINDINGS = [
+        Binding("escape", "dismiss", "Close"),
+        Binding("up", "move_up", "Up", show=False),
+        Binding("down", "move_down", "Down", show=False),
+        Binding("left", "prev_sound", "Prev", show=False),
+        Binding("right", "next_sound", "Next", show=False),
+        Binding("space", "preview", "Preview", show=False),
+    ]
+
+    CSS = """
+    SoundSettingsScreen {
+        align: center middle;
+    }
+    #sound-settings {
+        width: 50;
+        height: auto;
+        max-height: 80%;
+        border: solid $primary;
+        background: $surface;
+        padding: 1 2;
+    }
+    .setting-row {
+        height: 1;
+        padding: 0 1;
+    }
+    .setting-row.selected {
+        background: $accent;
+    }
+    .setting-label {
+        width: 20;
+    }
+    .setting-value {
+        width: 1fr;
+        text-align: right;
+    }
+    """
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.selected_row = 0
+        self.sounds = get_available_sounds()
+
+    def compose(self) -> ComposeResult:
+        from textual.containers import Vertical, Horizontal
+        with Vertical(id="sound-settings"):
+            yield Static("Sound Settings", classes="title")
+            yield Static("")
+            with Horizontal(classes="setting-row selected", id="row-toggle"):
+                yield Static("Enabled", classes="setting-label")
+                enabled = "yes" if self.app.config.sounds.enabled else "no"
+                yield Static(f"< {enabled} >", classes="setting-value", id="val-toggle")
+            yield Static("")
+            for status in STATUSES:
+                label = status.replace("_", " ").title()
+                current = getattr(self.app.config.sounds, status, "none")
+                with Horizontal(classes="setting-row", id=f"row-{status}"):
+                    yield Static(label, classes="setting-label")
+                    yield Static(f"< {current} >", classes="setting-value", id=f"val-{status}")
+            yield Static("")
+            yield Static("[up/down] navigate  [left/right] change  [space] preview  [esc] close", classes="help")
+
+    def _update_selection(self) -> None:
+        rows = ["toggle"] + STATUSES
+        for i, row_id in enumerate(rows):
+            row = self.query_one(f"#row-{row_id}")
+            if i == self.selected_row:
+                row.add_class("selected")
+            else:
+                row.remove_class("selected")
+
+    def _get_current_row_id(self) -> str:
+        rows = ["toggle"] + STATUSES
+        return rows[self.selected_row]
+
+    def action_move_up(self) -> None:
+        if self.selected_row > 0:
+            self.selected_row -= 1
+            self._update_selection()
+
+    def action_move_down(self) -> None:
+        max_row = len(STATUSES)
+        if self.selected_row < max_row:
+            self.selected_row += 1
+            self._update_selection()
+
+    def action_prev_sound(self) -> None:
+        self._change_sound(-1)
+
+    def action_next_sound(self) -> None:
+        self._change_sound(1)
+
+    def _change_sound(self, direction: int) -> None:
+        row_id = self._get_current_row_id()
+        if row_id == "toggle":
+            self.app.config.sounds.enabled = not self.app.config.sounds.enabled
+            enabled = "yes" if self.app.config.sounds.enabled else "no"
+            self.query_one("#val-toggle", Static).update(f"< {enabled} >")
+        else:
+            current = getattr(self.app.config.sounds, row_id, "none")
+            idx = self.sounds.index(current) if current in self.sounds else 0
+            idx = (idx + direction) % len(self.sounds)
+            new_sound = self.sounds[idx]
+            setattr(self.app.config.sounds, row_id, new_sound)
+            self.query_one(f"#val-{row_id}", Static).update(f"< {new_sound} >")
+            if new_sound != "none":
+                asyncio.create_task(play_sound(new_sound))
+        save_config(self.app.config)
+
+    def action_preview(self) -> None:
+        row_id = self._get_current_row_id()
+        if row_id != "toggle":
+            sound = getattr(self.app.config.sounds, row_id, "none")
+            if sound != "none":
+                asyncio.create_task(play_sound(sound))
+
+
 class SoundCommands(Provider):
     @property
     def app(self) -> "PlateSpinnerApp":
         return self.screen.app  # type: ignore[return-value]
 
     async def discover(self) -> Hits:
-        for status in ["awaiting_input", "awaiting_approval", "error", "idle", "closed"]:
-            label = status.replace("_", " ").title()
-            yield DiscoveryHit(
-                f"Set sound: {label}",
-                self.action_select_sound,
-                status,
-                help=f"Choose notification sound for {label}",
-            )
         yield DiscoveryHit(
-            "Toggle sounds",
-            self.action_toggle_sounds,
-            help="Enable or disable all notification sounds",
+            "Sound settings",
+            self.action_open_settings,
+            help="Configure notification sounds",
         )
 
     async def search(self, query: str) -> Hits:
         matcher = self.matcher(query)
-        for status in ["awaiting_input", "awaiting_approval", "error", "idle", "closed"]:
-            label = status.replace("_", " ").title()
-            command = f"Set sound: {label}"
-            score = matcher.match(command)
-            if score > 0:
-                yield Hit(score, command, self.action_select_sound, status, help=f"Choose sound for {label}")
-
-        score = matcher.match("Toggle sounds")
+        score = matcher.match("Sound settings")
         if score > 0:
-            enabled = self.app.config.sounds.enabled
-            state = "on" if enabled else "off"
-            yield Hit(score, f"Toggle sounds (currently {state})", self.action_toggle_sounds)
+            yield Hit(score, "Sound settings", self.action_open_settings, help="Configure notification sounds")
 
-    async def action_toggle_sounds(self) -> None:
-        self.app.config.sounds.enabled = not self.app.config.sounds.enabled
-        save_config(self.app.config)
-        state = "enabled" if self.app.config.sounds.enabled else "disabled"
-        self.app.notify(f"Sounds {state}")
-
-    async def action_select_sound(self, status: str) -> None:
-        self.app.push_screen(SoundPickerScreen(status))
-
-
-class SoundPickerScreen(ModalScreen["PlateSpinnerApp"]):
-    BINDINGS = [("escape", "dismiss", "Cancel")]
-
-    def __init__(self, status: str) -> None:
-        super().__init__()
-        self.status = status
-
-    def compose(self) -> ComposeResult:
-        sounds = get_available_sounds()
-        current = getattr(self.app.config.sounds, self.status, "none")
-        options = [Option(f"{'* ' if s == current else '  '}{s}", id=s) for s in sounds]
-        yield OptionList(*options, id="sound-picker")
-
-    def on_option_list_option_selected(self, event: OptionList.OptionSelected) -> None:
-        sound_name = event.option.id
-        if sound_name is None:
-            return
-        setattr(self.app.config.sounds, self.status, sound_name)
-        save_config(self.app.config)
-
-        if sound_name != "none":
-            asyncio.create_task(play_sound(sound_name))
-
-        label = self.status.replace("_", " ").title()
-        self.app.notify(f"{label} sound set to {sound_name}")
-        self.dismiss()
+    async def action_open_settings(self) -> None:
+        self.app.push_screen(SoundSettingsScreen())
 
 
 class PlateSpinnerApp(App):
@@ -172,6 +240,7 @@ class PlateSpinnerApp(App):
     BINDINGS = [
         Binding("q", "quit", "Quit"),
         Binding("r", "refresh", "Refresh"),
+        Binding("s", "sound_settings", "Sounds"),
         Binding("x", "dismiss_prompt", "Dismiss"),
         Binding("1", "jump(1)", "Jump 1", show=False),
         Binding("2", "jump(2)", "Jump 2", show=False),
@@ -209,6 +278,9 @@ class PlateSpinnerApp(App):
     def watch_theme(self, theme: str) -> None:
         self.config.theme.name = theme
         save_config(self.config)
+
+    def action_sound_settings(self) -> None:
+        self.push_screen(SoundSettingsScreen())
 
     async def connect_websocket(self) -> None:
         ws_url = self.daemon_url.replace("http://", "ws://") + "/ws"
