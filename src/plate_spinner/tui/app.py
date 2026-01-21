@@ -145,7 +145,7 @@ class SoundSettingsScreen(ModalScreen["PlateSpinnerApp"]):
                     yield Static(label, classes="setting-label")
                     yield Static(f"< {current} >", classes="setting-value", id=f"val-{status}")
             yield Static("")
-            yield Static("[up/down] navigate  [left/right] change  [space] preview  [esc] close", classes="help")
+            yield Static("[esc] save and close", classes="help")
 
     def _update_selection(self) -> None:
         rows = ["toggle"] + STATUSES
