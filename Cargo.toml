@@ -1,6 +1,6 @@
 [package]
 name = "plate-spinner"
-version = "0.1.3"
+version = "0.1.4"
 edition = "2021"
 description = "A CLI tool for spinning plates"
 repository = "https://github.com/nishu-builder/plate-spinner"
