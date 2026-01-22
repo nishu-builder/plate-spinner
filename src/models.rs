@@ -97,6 +97,8 @@ pub struct HookEvent {
     #[serde(default)]
     pub git_branch: Option<String>,
     #[serde(default)]
+    pub tmux_target: Option<String>,
+    #[serde(default)]
     pub error: Option<String>,
 }
 
