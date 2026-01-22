@@ -2,10 +2,21 @@
 
 Dashboard for managing multiple concurrent Claude Code plates.
 
+## Installation
+
+```bash
+curl --proto '=https' --tlsv1.2 -LsSf https://github.com/nishu-builder/plate-spinner/releases/latest/download/plate-spinner-installer.sh | sh
+```
+
+Or build from source:
+
+```bash
+cargo install --git https://github.com/nishu-builder/plate-spinner
+```
+
 ## Quick Start
 
 ```bash
-cargo install --path .
 sp install              # Prints hook config to add to ~/.claude/settings.json
 sp                      # Open dashboard (terminal 1)
 sp run                  # Start tracked plate (terminal 2)
@@ -68,15 +79,7 @@ sp hook session-start/pre-tool-use/post-tool-use/stop
 sp daemon (SQLite + WebSocket) --> sp (TUI)
 ```
 
-## Building
-
-```bash
-cargo build --release
-# Binary at target/release/sp
-```
-
 ## Requirements
 
-- Rust 1.70+
 - Claude Code
 - `ANTHROPIC_API_KEY` (optional, enables summaries)
