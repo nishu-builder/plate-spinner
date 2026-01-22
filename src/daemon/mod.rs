@@ -1,4 +1,5 @@
 pub mod handlers;
+mod health_check;
 pub mod state;
 pub mod summarizer;
 pub mod websocket;
@@ -25,6 +26,7 @@ pub fn create_router(state: Arc<AppState>) -> Router {
 }
 
 pub async fn run(state: Arc<AppState>, port: u16) -> anyhow::Result<()> {
+    health_check::spawn_health_checker(state.clone());
     let app = create_router(state);
     let listener = tokio::net::TcpListener::bind(format!("127.0.0.1:{}", port)).await?;
     axum::serve(listener, app).await?;
