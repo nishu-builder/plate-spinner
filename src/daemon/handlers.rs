@@ -35,7 +35,7 @@ fn determine_status(event: &HookEvent) -> SessionStatus {
         return if event.error.is_some() {
             SessionStatus::Error
         } else {
-            SessionStatus::Closed
+            SessionStatus::Idle
         };
     }
     if event.event_type == "session_start" || event.event_type == "tool_start" {
