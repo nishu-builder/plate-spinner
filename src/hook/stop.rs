@@ -10,17 +10,11 @@ pub async fn stop() -> Result<()> {
         return Ok(());
     }
 
-    let error = data
-        .get("stop_hook_active")
-        .and_then(|v| v.as_bool())
-        .filter(|&b| !b)
-        .map(|_| "stopped");
-
     let payload = serde_json::json!({
         "session_id": data["session_id"],
         "project_path": data["cwd"],
         "event_type": "stop",
-        "error": error,
+        "error": data.get("error"),
     });
 
     post_event(&client, payload).await;
