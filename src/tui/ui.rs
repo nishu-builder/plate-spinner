@@ -52,6 +52,8 @@ fn render_plates(frame: &mut Frame, app: &App, area: Rect) {
     } else {
         (plates.len().ilog10() + 1) as usize
     };
+    let prefix_width = 2 + num_width + 1 + 1 + 1 + 1 + 20 + 1 + 7 + 1 + 5 + 1;
+    let summary_width = (area.width as usize).saturating_sub(prefix_width);
     let mut items: Vec<ListItem> = Vec::new();
     let mut open_count = 0;
     let mut closed_started = false;
@@ -92,18 +94,6 @@ fn render_plates(frame: &mut Frame, app: &App, area: Rect) {
         let todo = pad_or_truncate(plate.todo_progress.as_deref().unwrap_or(""), 5);
         let summary = plate.summary.as_deref().unwrap_or("");
 
-        let line_text = format!(
-            "[{:>width$}]{} {} {} {} {} {}",
-            idx + 1,
-            unseen_marker,
-            icon,
-            label,
-            status_short,
-            todo,
-            summary,
-            width = num_width,
-        );
-
         let style = if is_selected {
             Style::default()
                 .fg(status_color)
@@ -112,7 +102,41 @@ fn render_plates(frame: &mut Frame, app: &App, area: Rect) {
             Style::default().fg(status_color)
         };
 
-        items.push(ListItem::new(Line::from(Span::styled(line_text, style))));
+        let prefix = format!(
+            "[{:>width$}]{} {} {} {} {}",
+            idx + 1,
+            unseen_marker,
+            icon,
+            label,
+            status_short,
+            todo,
+            width = num_width,
+        );
+
+        if is_selected && summary.chars().count() > summary_width {
+            let mut lines: Vec<Line> = Vec::new();
+            let first_line = format!("{} {}", prefix, pad_or_truncate(summary, summary_width));
+            lines.push(Line::from(Span::styled(first_line, style)));
+            let indent = " ".repeat(prefix_width);
+            let remaining: String = summary.chars().skip(summary_width).collect();
+            for chunk in remaining.chars().collect::<Vec<_>>().chunks(summary_width) {
+                let wrapped: String = chunk.iter().collect();
+                lines.push(Line::from(Span::styled(
+                    format!("{}{}", indent, wrapped),
+                    style,
+                )));
+            }
+            items.push(ListItem::new(lines));
+        } else {
+            let display_summary = if summary.chars().count() > summary_width && summary_width >= 3 {
+                let truncated: String = summary.chars().take(summary_width - 3).collect();
+                format!("{}...", truncated)
+            } else {
+                summary.to_string()
+            };
+            let line_text = format!("{} {}", prefix, display_summary);
+            items.push(ListItem::new(Line::from(Span::styled(line_text, style))));
+        }
     }
 
     if items.is_empty() {
