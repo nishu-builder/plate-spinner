@@ -117,32 +117,53 @@ fn render_plates(frame: &mut Frame, app: &App, area: Rect) {
             width = num_width,
         );
 
-        if is_selected && full_summary.chars().count() > summary_width {
+        if is_selected {
             let mut lines: Vec<Line> = Vec::new();
-            let first_line = format!(
-                "{} {}",
-                prefix,
-                pad_or_truncate(&full_summary, summary_width)
-            );
-            lines.push(Line::from(Span::styled(first_line, style)));
             let indent = " ".repeat(prefix_width);
-            let remaining: String = full_summary.chars().skip(summary_width).collect();
-            for chunk in remaining.chars().collect::<Vec<_>>().chunks(summary_width) {
-                let wrapped: String = chunk.iter().collect();
-                lines.push(Line::from(Span::styled(
-                    format!("{}{}", indent, wrapped),
-                    style,
-                )));
+            let summary_lines: Vec<&str> = full_summary.split('\n').collect();
+            let full_width = area.width as usize;
+
+            for (line_idx, summary_line) in summary_lines.iter().enumerate() {
+                let line_prefix = if line_idx == 0 {
+                    format!("{} ", prefix)
+                } else {
+                    indent.clone()
+                };
+
+                if summary_line.chars().count() <= summary_width {
+                    let line_text = format!("{}{}", line_prefix, summary_line);
+                    let padded = format!("{:<width$}", line_text, width = full_width);
+                    lines.push(Line::from(Span::styled(padded, style)));
+                } else {
+                    for (chunk_idx, chunk) in summary_line
+                        .chars()
+                        .collect::<Vec<_>>()
+                        .chunks(summary_width)
+                        .enumerate()
+                    {
+                        let chunk_prefix = if line_idx == 0 && chunk_idx == 0 {
+                            format!("{} ", prefix)
+                        } else {
+                            indent.clone()
+                        };
+                        let wrapped: String = chunk.iter().collect();
+                        let line_text = format!("{}{}", chunk_prefix, wrapped);
+                        let padded = format!("{:<width$}", line_text, width = full_width);
+                        lines.push(Line::from(Span::styled(padded, style)));
+                    }
+                }
             }
             items.push(ListItem::new(lines));
         } else {
-            let display_summary =
-                if full_summary.chars().count() > summary_width && summary_width >= 3 {
-                    let truncated: String = full_summary.chars().take(summary_width - 3).collect();
-                    format!("{}...", truncated)
-                } else {
-                    full_summary.clone()
-                };
+            let collapsed_summary = full_summary.replace('\n', ". ");
+            let display_summary = if collapsed_summary.chars().count() > summary_width
+                && summary_width >= 3
+            {
+                let truncated: String = collapsed_summary.chars().take(summary_width - 3).collect();
+                format!("{}...", truncated)
+            } else {
+                collapsed_summary
+            };
             let line_text = format!("{} {}", prefix, display_summary);
             items.push(ListItem::new(Line::from(Span::styled(line_text, style))));
         }
