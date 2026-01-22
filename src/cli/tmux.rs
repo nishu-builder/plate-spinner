@@ -113,3 +113,16 @@ pub fn generate_window_name() -> String {
 pub fn format_tmux_target(session: &str, window: &str) -> String {
     format!("{}:{}", session, window)
 }
+
+pub fn generate_grouped_session_name() -> String {
+    use std::collections::hash_map::RandomState;
+    use std::hash::{BuildHasher, Hasher};
+    let mut hasher = RandomState::new().build_hasher();
+    hasher.write_u64(
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos() as u64,
+    );
+    format!("sp-view-{:07x}", hasher.finish() & 0xFFFFFFF)
+}

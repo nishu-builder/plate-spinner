@@ -228,8 +228,10 @@ fn main() {
             }
 
             if !in_tmux {
+                // Use grouped session so this terminal has independent window view
+                let grouped = tmux::generate_grouped_session_name();
                 let err = Command::new("tmux")
-                    .args(["attach", "-t", &format!("{}:dashboard", session)])
+                    .args(["new-session", "-t", &session, "-s", &grouped])
                     .exec();
                 eprintln!("Failed to attach to tmux: {}", err);
                 std::process::exit(1);
