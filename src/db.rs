@@ -75,6 +75,10 @@ impl Database {
             self.conn
                 .execute("ALTER TABLE plates ADD COLUMN git_branch TEXT", [])?;
         }
+        if !columns.contains(&"tmux_target".to_string()) {
+            self.conn
+                .execute("ALTER TABLE plates ADD COLUMN tmux_target TEXT", [])?;
+        }
         Ok(())
     }
 
