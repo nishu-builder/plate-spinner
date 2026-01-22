@@ -2,20 +2,22 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use crate::models::PlateStatus;
+use crate::recovery::{is_stale, HEALTH_CHECK_INTERVAL_SECS};
+use crate::state_machine::Event;
 
 use super::state::{AppState, WsMessage};
 
 pub fn spawn_health_checker(state: Arc<AppState>) {
     tokio::spawn(async move {
         loop {
-            tokio::time::sleep(Duration::from_secs(10)).await;
+            tokio::time::sleep(Duration::from_secs(HEALTH_CHECK_INTERVAL_SECS)).await;
             check_stale_statuses(&state);
         }
     });
 }
 
 fn check_stale_statuses(state: &Arc<AppState>) {
-    let stale_plates = {
+    let stale_plates: Vec<(String, PlateStatus)> = {
         let db = state.db.lock().unwrap();
         db.get_plates()
             .unwrap_or_default()
@@ -36,22 +38,23 @@ fn check_stale_statuses(state: &Arc<AppState>) {
                     .ok()?
                     .as_secs() as i64;
 
-                if mtime_secs > updated_at + 2 {
-                    Some(p.session_id)
+                if is_stale(mtime_secs, updated_at) {
+                    Some((p.session_id, p.status))
                 } else {
                     None
                 }
             })
-            .collect::<Vec<_>>()
+            .collect()
     };
 
-    for session_id in stale_plates {
+    for (session_id, old_status) in stale_plates {
+        let new_status = old_status.transition(&Event::HealthCheckRecovery);
         let now = chrono::Utc::now().to_rfc3339();
         {
             let db = state.db.lock().unwrap();
             let _ = db.conn().execute(
-                "UPDATE plates SET status = 'idle', updated_at = ? WHERE session_id = ?",
-                rusqlite::params![now, session_id],
+                "UPDATE plates SET status = ?, updated_at = ? WHERE session_id = ?",
+                rusqlite::params![new_status.as_str(), now, session_id],
             );
         }
         let _ = state.tx.send(WsMessage::PlateUpdate(session_id));

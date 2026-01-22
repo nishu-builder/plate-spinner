@@ -4,6 +4,8 @@ pub mod daemon;
 pub mod db;
 pub mod hook;
 pub mod models;
+pub mod recovery;
+pub mod state_machine;
 pub mod tui;
 
 use std::process::Command;

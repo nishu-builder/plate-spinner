@@ -8,6 +8,7 @@ use std::sync::Arc;
 use super::state::{AppState, WsMessage};
 use super::summarizer;
 use crate::models::{HookEvent, PlateStatus};
+use crate::state_machine::Event;
 
 #[derive(Serialize)]
 pub struct StatusResponse {
@@ -43,20 +44,12 @@ pub async fn status() -> Json<StatusResponse> {
 }
 
 fn determine_status(event: &HookEvent) -> PlateStatus {
-    match event.event_type.as_str() {
-        "stop" => {
-            if event.error.is_some() {
-                PlateStatus::Error
-            } else {
-                PlateStatus::Idle
-            }
-        }
-        "prompt_submit" => PlateStatus::Running,
-        "session_start" => PlateStatus::Running,
-        "tool_start" => PlateStatus::from_tool(event.tool_name.as_deref().unwrap_or("")),
-        "tool_call" => PlateStatus::Running,
-        _ => PlateStatus::Running,
-    }
+    let sm_event = Event::from_hook(
+        &event.event_type,
+        event.tool_name.as_deref(),
+        event.error.as_deref(),
+    );
+    PlateStatus::Running.transition(&sm_event)
 }
 
 fn maybe_summarize(state: Arc<AppState>, event: HookEvent, status: PlateStatus) {
