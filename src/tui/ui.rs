@@ -14,7 +14,7 @@ use super::state::App;
 pub fn render(frame: &mut Frame, app: &App) {
     let banner_height = if app.show_auth_banner { 1 } else { 0 };
     let chunks = Layout::vertical([
-        Constraint::Length(1),
+        Constraint::Length(2),
         Constraint::Length(banner_height),
         Constraint::Min(0),
         Constraint::Length(1),
@@ -235,9 +235,9 @@ fn render_auth_banner(frame: &mut Frame, area: Rect) {
 
 fn render_footer(frame: &mut Frame, app: &App, area: Rect) {
     let text = if app.show_auth_banner {
-        " q:quit  r:refresh  s:sounds  enter:resume  del:dismiss  1-9:jump  esc:deselect  d:dismiss banner "
+        " q:quit  r:refresh  s:sounds  c:closed  enter:resume  del:dismiss  1-9:jump  esc:deselect  d:dismiss banner "
     } else {
-        " q:quit  r:refresh  s:sounds  enter:resume  del:dismiss  1-9:jump  esc:deselect "
+        " q:quit  r:refresh  s:sounds  c:closed  enter:resume  del:dismiss  1-9:jump  esc:deselect "
     };
     let footer = Paragraph::new(text).style(Style::default().add_modifier(Modifier::DIM));
     frame.render_widget(footer, area);

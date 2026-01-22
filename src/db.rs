@@ -79,6 +79,10 @@ impl Database {
             self.conn
                 .execute("ALTER TABLE plates ADD COLUMN tmux_target TEXT", [])?;
         }
+        if !columns.contains(&"goal".to_string()) {
+            self.conn
+                .execute("ALTER TABLE plates ADD COLUMN goal TEXT", [])?;
+        }
         Ok(())
     }
 
@@ -219,6 +223,24 @@ impl Database {
         self.conn.execute(
             "UPDATE plates SET summary = ? WHERE session_id = ?",
             params![summary, session_id],
+        )?;
+        Ok(())
+    }
+
+    pub fn get_goal(&self, session_id: &str) -> Result<Option<String>> {
+        self.conn
+            .query_row(
+                "SELECT goal FROM plates WHERE session_id = ?",
+                [session_id],
+                |row| row.get(0),
+            )
+            .map_err(Into::into)
+    }
+
+    pub fn set_goal(&self, session_id: &str, goal: &str) -> Result<()> {
+        self.conn.execute(
+            "UPDATE plates SET goal = ? WHERE session_id = ?",
+            params![goal, session_id],
         )?;
         Ok(())
     }

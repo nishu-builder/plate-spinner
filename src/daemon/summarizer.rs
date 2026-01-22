@@ -38,8 +38,40 @@ struct ApiResponse {
     content: Vec<ContentBlock>,
 }
 
-pub fn summarize_session(transcript_path: &str) -> Option<String> {
-    let api_key = get_api_key()?;
+pub struct SummaryResult {
+    pub goal: Option<String>,
+    pub summary: String,
+}
+
+fn call_api(api_key: &str, prompt: &str, max_tokens: u32) -> Option<String> {
+    let client = reqwest::blocking::Client::new();
+    let request = ApiRequest {
+        model: "claude-3-5-haiku-latest".to_string(),
+        max_tokens,
+        messages: vec![Message {
+            role: "user".to_string(),
+            content: prompt.to_string(),
+        }],
+    };
+
+    let response = client
+        .post("https://api.anthropic.com/v1/messages")
+        .header("x-api-key", api_key)
+        .header("anthropic-version", "2023-06-01")
+        .header("content-type", "application/json")
+        .json(&request)
+        .send()
+        .ok()?;
+
+    let api_response: ApiResponse = response.json().ok()?;
+    api_response
+        .content
+        .first()
+        .and_then(|block| block.text.clone())
+        .map(|s| s.trim().to_string())
+}
+
+fn extract_messages(transcript_path: &str) -> Option<Vec<String>> {
     let path = Path::new(transcript_path);
     if !path.exists() {
         return None;
@@ -63,8 +95,9 @@ pub fn summarize_session(transcript_path: &str) -> Option<String> {
             match entry_type {
                 "user" => {
                     if let Some(text) = content.and_then(|c| c.as_str()) {
-                        if !text.is_empty() {
-                            let truncated: String = text.chars().take(200).collect();
+                        let truncated: String = text.chars().take(200).collect();
+                        // Skip very short messages (likely just confirmations)
+                        if truncated.len() >= 10 {
                             messages.push(format!("User: {}", truncated));
                         }
                     }
@@ -77,7 +110,7 @@ pub fn summarize_session(transcript_path: &str) -> Option<String> {
                                 Some("text") => {
                                     if let Some(text) = block.get("text").and_then(|v| v.as_str()) {
                                         let truncated: String = text.chars().take(200).collect();
-                                        if !truncated.is_empty() {
+                                        if truncated.len() >= 10 {
                                             messages.push(format!("Assistant: {}", truncated));
                                         }
                                     }
@@ -93,8 +126,8 @@ pub fn summarize_session(transcript_path: &str) -> Option<String> {
                             }
                         }
                     } else if let Some(text) = content.and_then(|c| c.as_str()) {
-                        if !text.is_empty() {
-                            let truncated: String = text.chars().take(200).collect();
+                        let truncated: String = text.chars().take(200).collect();
+                        if truncated.len() >= 10 {
                             messages.push(format!("Assistant: {}", truncated));
                         }
                     }
@@ -105,10 +138,34 @@ pub fn summarize_session(transcript_path: &str) -> Option<String> {
     }
 
     if messages.is_empty() {
-        return None;
+        None
+    } else {
+        Some(messages)
+    }
+}
+
+pub fn summarize_session(
+    transcript_path: &str,
+    cached_goal: Option<&str>,
+) -> Option<SummaryResult> {
+    let api_key = get_api_key()?;
+    let messages = extract_messages(transcript_path)?;
+
+    // Short sessions (< 5 messages): simple summary, no goal caching
+    if messages.len() < 5 {
+        let context = messages.join("\n");
+        let prompt = format!(
+            "What is this conversation about? Reply with ONLY a short phrase (3-8 words).\n\n{}",
+            context
+        );
+        let summary = call_api(&api_key, &prompt, 30)?;
+        return Some(SummaryResult {
+            goal: None,
+            summary,
+        });
     }
 
-    // Anchor + window: first 5 messages (goal) + last 10 messages (current activity)
+    // Build context: first 5 messages + last 10 messages
     let context = if messages.len() <= 15 {
         messages.join("\n")
     } else {
@@ -117,36 +174,44 @@ pub fn summarize_session(transcript_path: &str) -> Option<String> {
         format!("{}\n...\n{}", first.join("\n"), last.join("\n"))
     };
 
-    let client = reqwest::blocking::Client::new();
-    let request = ApiRequest {
-        model: "claude-3-5-haiku-latest".to_string(),
-        max_tokens: 60,
-        messages: vec![Message {
-            role: "user".to_string(),
-            content: format!(
-                "Summarize this conversation in the format: Goal: status\n\
-                 - Goal = 2-4 word title of the overall task\n\
-                 - status = what's happening now (can be longer)\n\
-                 Example: 'Auth system: Running integration tests after fixing login'\n\
-                 Reply with ONLY the summary on one line, nothing else.\n\n{}",
-                context
-            ),
-        }],
-    };
+    // If we have a cached goal, only ask for current status
+    if let Some(goal) = cached_goal {
+        let last_context: String = messages
+            .iter()
+            .rev()
+            .take(5)
+            .rev()
+            .cloned()
+            .collect::<Vec<_>>()
+            .join("\n");
+        let prompt = format!(
+            "Conversation excerpt:\n---\n{}\n---\n\n\
+             The overall task is \"{}\". Based on the last Assistant message, what is the current activity?\n\
+             Reply with ONLY a brief phrase (3-8 words).",
+            last_context, goal
+        );
+        let status = call_api(&api_key, &prompt, 40)?;
+        return Some(SummaryResult {
+            goal: None, // Don't update goal
+            summary: format!("{}: {}", goal, status),
+        });
+    }
 
-    let response = client
-        .post("https://api.anthropic.com/v1/messages")
-        .header("x-api-key", &api_key)
-        .header("anthropic-version", "2023-06-01")
-        .header("content-type", "application/json")
-        .json(&request)
-        .send()
-        .ok()?;
+    // First time: extract both goal and status
+    let prompt = format!(
+        "Conversation excerpt:\n---\n{}\n---\n\n\
+         Summarize as: Goal: current activity\n\
+         - Goal = overall task (2-4 words)\n\
+         - Current activity = from the LAST assistant message\n\
+         Example: Auth system: Running login tests\n\
+         Reply with ONLY that one line.",
+        context
+    );
 
-    let api_response: ApiResponse = response.json().ok()?;
-    api_response
-        .content
-        .first()
-        .and_then(|block| block.text.clone())
-        .map(|s| s.trim().to_string())
+    let summary = call_api(&api_key, &prompt, 60)?;
+
+    // Try to extract goal from the summary (everything before the first colon)
+    let goal = summary.split_once(':').map(|(g, _)| g.trim().to_string());
+
+    Some(SummaryResult { goal, summary })
 }

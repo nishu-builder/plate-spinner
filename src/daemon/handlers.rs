@@ -86,10 +86,19 @@ fn maybe_summarize(state: Arc<AppState>, event: HookEvent, status: PlateStatus) 
 
     let session_id = event.session_id.clone();
     let tx = state.tx.clone();
+
+    let cached_goal = {
+        let db = state.db.lock().unwrap();
+        db.get_goal(&session_id).ok().flatten()
+    };
+
     tokio::task::spawn_blocking(move || {
-        if let Some(summary) = summarizer::summarize_session(&transcript) {
+        if let Some(result) = summarizer::summarize_session(&transcript, cached_goal.as_deref()) {
             let db = state.db.lock().unwrap();
-            if db.set_summary(&session_id, &summary).is_ok() {
+            if let Some(goal) = result.goal {
+                let _ = db.set_goal(&session_id, &goal);
+            }
+            if db.set_summary(&session_id, &result.summary).is_ok() {
                 let _ = tx.send(WsMessage::PlateUpdate(session_id));
             }
         }
