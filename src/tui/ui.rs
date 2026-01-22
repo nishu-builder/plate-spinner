@@ -12,16 +12,21 @@ use crate::models::PlateStatus;
 use super::state::App;
 
 pub fn render(frame: &mut Frame, app: &App) {
+    let banner_height = if app.show_auth_banner { 1 } else { 0 };
     let chunks = Layout::vertical([
         Constraint::Length(1),
+        Constraint::Length(banner_height),
         Constraint::Min(0),
         Constraint::Length(1),
     ])
     .split(frame.area());
 
     render_header(frame, app, chunks[0]);
-    render_plates(frame, app, chunks[1]);
-    render_footer(frame, chunks[2]);
+    if app.show_auth_banner {
+        render_auth_banner(frame, chunks[1]);
+    }
+    render_plates(frame, app, chunks[2]);
+    render_footer(frame, app, chunks[3]);
 
     if app.show_sound_settings {
         render_sound_settings(frame, app);
@@ -83,12 +88,12 @@ fn render_plates(frame: &mut Frame, app: &App, area: Rect) {
 
         let label = format_label(plate.project_name(), plate.git_branch.as_deref());
 
-        let status_short = plate.status.short_name();
-        let todo = plate.todo_progress.as_deref().unwrap_or("");
+        let status_short = pad_or_truncate(plate.status.short_name(), 7);
+        let todo = pad_or_truncate(plate.todo_progress.as_deref().unwrap_or(""), 5);
         let summary = plate.summary.as_deref().unwrap_or("");
 
         let line_text = format!(
-            "[{:>width$}]{} {} {:20} {:8} {:12} {}",
+            "[{:>width$}]{} {} {} {} {} {}",
             idx + 1,
             unseen_marker,
             icon,
@@ -118,10 +123,21 @@ fn render_plates(frame: &mut Frame, app: &App, area: Rect) {
     frame.render_widget(list, area);
 }
 
-fn render_footer(frame: &mut Frame, area: Rect) {
-    let footer =
-        Paragraph::new(" q:quit  r:refresh  s:sounds  enter:resume  del:dismiss  1-9:jump ")
-            .style(Style::default().add_modifier(Modifier::DIM));
+fn render_auth_banner(frame: &mut Frame, area: Rect) {
+    let banner = Paragraph::new(
+        " No API key configured. Run `sp auth set` for AI summaries. Press 'd' to dismiss. ",
+    )
+    .style(Style::default().fg(Color::Yellow));
+    frame.render_widget(banner, area);
+}
+
+fn render_footer(frame: &mut Frame, app: &App, area: Rect) {
+    let text = if app.show_auth_banner {
+        " q:quit  r:refresh  s:sounds  enter:resume  del:dismiss  1-9:jump  d:dismiss banner "
+    } else {
+        " q:quit  r:refresh  s:sounds  enter:resume  del:dismiss  1-9:jump "
+    };
+    let footer = Paragraph::new(text).style(Style::default().add_modifier(Modifier::DIM));
     frame.render_widget(footer, area);
 }
 
@@ -192,16 +208,25 @@ fn status_color(status: PlateStatus) -> Color {
     }
 }
 
+fn pad_or_truncate(s: &str, width: usize) -> String {
+    let chars: Vec<char> = s.chars().collect();
+    if chars.len() > width {
+        if width >= 3 {
+            chars[..width - 3].iter().collect::<String>() + "..."
+        } else {
+            chars[..width].iter().collect()
+        }
+    } else {
+        format!("{:<width$}", s, width = width)
+    }
+}
+
 fn format_label(project: &str, branch: Option<&str>) -> String {
     let label = match branch {
         Some(b) => format!("{}/{}", project, b),
         None => project.to_string(),
     };
-    if label.len() > 20 {
-        format!("{}...", &label[..17])
-    } else {
-        label
-    }
+    pad_or_truncate(&label, 20)
 }
 
 pub fn next_sound(current: &str) -> &'static str {

@@ -63,6 +63,11 @@ async fn handle_key(app: &mut App, key: KeyCode) {
             app.show_sound_settings = true;
             app.sound_settings_row = 0;
         }
+        KeyCode::Char('d') => {
+            if app.show_auth_banner {
+                app.dismiss_auth_banner();
+            }
+        }
         KeyCode::Up => {
             app.move_up();
             app.mark_seen();

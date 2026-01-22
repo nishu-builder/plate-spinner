@@ -1,6 +1,7 @@
 use std::collections::{HashMap, HashSet};
 
-use crate::config::Config;
+use crate::config::{get_data_dir, Config};
+use crate::daemon::summarizer::get_api_key;
 use crate::models::{Plate, PlateStatus};
 
 pub struct App {
@@ -13,10 +14,13 @@ pub struct App {
     pub resume_plate: Option<(String, String)>,
     pub show_sound_settings: bool,
     pub sound_settings_row: usize,
+    pub show_auth_banner: bool,
 }
 
 impl App {
     pub fn new(config: Config) -> Self {
+        let has_api_key = get_api_key().is_some();
+        let banner_dismissed = get_data_dir().join(".auth_banner_dismissed").exists();
         Self {
             plates: Vec::new(),
             selected_index: 0,
@@ -27,7 +31,14 @@ impl App {
             resume_plate: None,
             show_sound_settings: false,
             sound_settings_row: 0,
+            show_auth_banner: !has_api_key && !banner_dismissed,
         }
+    }
+
+    pub fn dismiss_auth_banner(&mut self) {
+        self.show_auth_banner = false;
+        let dismiss_path = get_data_dir().join(".auth_banner_dismissed");
+        let _ = std::fs::write(&dismiss_path, "");
     }
 
     pub fn display_order(&self) -> Vec<&Plate> {

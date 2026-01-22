@@ -1,6 +1,7 @@
 use crate::config::{delete_auth_config, get_auth_config_path, save_auth_config, AuthConfig};
 use anyhow::Result;
-use std::io::{self, BufRead, Write};
+use crossterm::terminal::{disable_raw_mode, enable_raw_mode};
+use std::io::{self, Read, Write};
 
 pub fn auth_status() -> Result<()> {
     let path = get_auth_config_path();
@@ -19,9 +20,8 @@ pub fn auth_set() -> Result<()> {
     print!("Enter your Anthropic API key: ");
     io::stdout().flush()?;
 
-    let stdin = io::stdin();
-    let key = stdin.lock().lines().next().unwrap_or(Ok(String::new()))?;
-    let key = key.trim().to_string();
+    let key = read_masked_input()?;
+    println!();
 
     if key.is_empty() {
         anyhow::bail!("API key cannot be empty");
@@ -34,6 +34,39 @@ pub fn auth_set() -> Result<()> {
 
     println!("API key saved to {}", get_auth_config_path().display());
     Ok(())
+}
+
+fn read_masked_input() -> Result<String> {
+    enable_raw_mode()?;
+    let result = read_masked_input_inner();
+    disable_raw_mode()?;
+    result
+}
+
+fn read_masked_input_inner() -> Result<String> {
+    let mut input = String::new();
+    let mut stdin = io::stdin();
+    let mut buf = [0u8; 1];
+
+    loop {
+        if stdin.read(&mut buf)? == 0 {
+            break;
+        }
+        match buf[0] {
+            b'\n' | b'\r' => break,
+            127 | 8 => {
+                if !input.is_empty() {
+                    input.pop();
+                }
+            }
+            3 => anyhow::bail!("Cancelled"),
+            c if c >= 32 => {
+                input.push(c as char);
+            }
+            _ => {}
+        }
+    }
+    Ok(input)
 }
 
 pub fn auth_unset() -> Result<()> {
