@@ -18,7 +18,7 @@ pub fn create_router(state: Arc<AppState>) -> Router {
         .route("/plates", get(handlers::get_plates))
         .route("/plates/register", post(handlers::register_plate))
         .route("/plates/stopped", post(handlers::mark_stopped))
-        .route("/plates/{session_id}", delete(handlers::delete_plate))
+        .route("/plates/:session_id", delete(handlers::delete_plate))
         .route("/ws", get(websocket::websocket_handler))
         .with_state(state)
 }
