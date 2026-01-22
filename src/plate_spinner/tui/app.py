@@ -50,6 +50,16 @@ STATUS_COLORS = {
     "closed": "dim",
 }
 
+STATUS_SHORT = {
+    "starting": "start",
+    "running": "run",
+    "idle": "idle",
+    "awaiting_input": "input",
+    "awaiting_approval": "approve",
+    "error": "error",
+    "closed": "closed",
+}
+
 
 def format_session_line(session: dict, index: int, index_width: int = 1) -> str:
     status = session["status"]
@@ -62,18 +72,21 @@ def format_session_line(session: dict, index: int, index_width: int = 1) -> str:
         label = f"{folder}/{branch}"
     else:
         label = folder
-    if len(label) > 25:
-        label = label[:22] + "..."
+    if len(label) > 20:
+        label = label[:17] + "..."
 
     icon = STATUS_ICONS.get(status, " ")
     color = STATUS_COLORS.get(status, "")
-    status_padded = f"{status:<17}"
-    colored_status = f"[{color}]{status_padded}[/]" if color else status_padded
-    line = f"[{index:>{index_width}}] {icon} {label:<25} {colored_status}"
+    status_short = STATUS_SHORT.get(status, status)
+
+    colored_icon = f"[{color}]{icon}[/]" if color else icon
+    colored_status = f"[{color}]{status_short:<7}[/]" if color else f"{status_short:<7}"
+
+    line = f"[{index:>{index_width}}] {colored_icon} {label:<20} {colored_status}"
     if todo:
-        line += f"  [{todo}]"
+        line += f" [{todo}]"
     if summary:
-        line += f"  {summary}"
+        line += f" {summary}"
     return line
 
 
@@ -258,6 +271,8 @@ class PlateSpinnerApp(App):
     }
     SessionWidget {
         padding: 0 1;
+        height: 1;
+        overflow: hidden;
     }
     SessionWidget.selected {
         background: $boost;
@@ -267,7 +282,6 @@ class PlateSpinnerApp(App):
     BINDINGS = [
         Binding("q", "quit", "Quit"),
         Binding("r", "refresh", "Refresh"),
-        Binding("c", "toggle_closed", "Close/Open"),
         Binding("s", "sound_settings", "Sounds"),
         Binding("delete", "dismiss", "Dismiss"),
         Binding("backspace", "dismiss", "Dismiss", show=False),
@@ -507,12 +521,6 @@ class PlateSpinnerApp(App):
             return
         asyncio.create_task(self._dismiss_selected())
 
-    def action_toggle_closed(self) -> None:
-        if not self.display_order:
-            self.notify("No sessions to toggle", severity="warning")
-            return
-        asyncio.create_task(self._toggle_selected())
-
     def action_jump(self, index: int) -> None:
         if index > len(self.display_order):
             self.notify("No session at that index", severity="warning")
@@ -538,22 +546,6 @@ class PlateSpinnerApp(App):
         except httpx.RequestError:
             self.notify("Failed to dismiss session", severity="error")
 
-    async def _toggle_selected(self) -> None:
-        session = self.display_order[self.selected_index]
-        session_id = session["session_id"]
-        was_closed = session["status"] == "closed"
-
-        try:
-            async with httpx.AsyncClient() as client:
-                response = await client.patch(f"{self.daemon_url}/sessions/{session_id}/toggle-closed")
-                if response.status_code == 200:
-                    action = "Reopened" if was_closed else "Closed"
-                    self.notify(f"{action} session")
-                    await self.action_refresh()
-                else:
-                    self.notify("Failed to toggle session", severity="error")
-        except httpx.RequestError:
-            self.notify("Failed to toggle session", severity="error")
 
 def run() -> str | None:
     app = PlateSpinnerApp()

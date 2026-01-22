@@ -6,14 +6,14 @@ import tomli_w
 from pydantic import BaseModel
 
 
-SoundName = Literal["chime", "bell", "pop", "ping", "alert", "none"]
+SoundName = Literal["alert", "bell", "click", "error", "long-pop", "pop", "tap", "none"]
 
 
 class SoundsConfig(BaseModel):
     enabled: bool = True
-    awaiting_input: SoundName = "chime"
+    awaiting_input: SoundName = "tap"
     awaiting_approval: SoundName = "bell"
-    error: SoundName = "alert"
+    error: SoundName = "error"
     idle: SoundName = "pop"
     closed: SoundName = "none"
 
@@ -61,4 +61,4 @@ def get_sound_path(name: str) -> Path | None:
 
 
 def get_available_sounds() -> list[str]:
-    return ["chime", "bell", "pop", "ping", "alert", "none"]
+    return ["alert", "bell", "click", "error", "long-pop", "pop", "tap", "none"]

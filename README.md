@@ -23,7 +23,6 @@ Keybindings:
 - `up/down` - Navigate sessions
 - `enter` - Resume selected session
 - `delete` - Dismiss selected session
-- `c` - Toggle closed/open
 - `s` - Sound settings
 - `r` - Refresh
 - `q` - Quit

@@ -238,26 +238,6 @@ def create_app(db: Database) -> FastAPI:
         await manager.broadcast({"type": "session_deleted", "session_id": session_id})
         return {"status": "ok"}
 
-    @app.patch("/sessions/{session_id}/toggle-closed")
-    async def toggle_closed(session_id: str) -> dict:
-        now = datetime.now(timezone.utc).isoformat()
-        row = db.execute(
-            "SELECT status FROM sessions WHERE session_id = ?",
-            (session_id,)
-        ).fetchone()
-        if not row:
-            return {"status": "error", "message": "Session not found"}
-
-        current = row[0]
-        new_status = SessionStatus.IDLE.value if current == SessionStatus.CLOSED.value else SessionStatus.CLOSED.value
-        db.execute(
-            "UPDATE sessions SET status = ?, updated_at = ? WHERE session_id = ?",
-            (new_status, now, session_id)
-        )
-        db.commit()
-        await manager.broadcast({"type": "session_update", "session_id": session_id})
-        return {"status": "ok", "new_status": new_status}
-
     @app.websocket("/ws")
     async def websocket_endpoint(websocket: WebSocket) -> None:
         await manager.connect(websocket)
