@@ -7,7 +7,7 @@ use ratatui::{
 };
 
 use crate::config::AVAILABLE_SOUNDS;
-use crate::models::PlateStatus;
+use crate::models::{Plate, PlateStatus};
 
 use super::state::App;
 
@@ -46,126 +46,76 @@ fn render_header(frame: &mut Frame, app: &App, area: Rect) {
 }
 
 fn render_plates(frame: &mut Frame, app: &App, area: Rect) {
-    let plates = app.display_order();
-    let num_width = if plates.is_empty() {
+    let open_plates = app.open_plates();
+    let closed_plates = app.closed_plates();
+    let open_count = open_plates.len();
+    let closed_count = closed_plates.len();
+
+    let total_items = if closed_count > 0 {
+        if app.closed_expanded {
+            open_count + 1 + closed_count
+        } else {
+            open_count + 1
+        }
+    } else {
+        open_count
+    };
+
+    let num_width = if total_items == 0 {
         1
     } else {
-        (plates.len().ilog10() + 1) as usize
+        (total_items.ilog10() + 1) as usize
     };
     let prefix_width = 2 + num_width + 1 + 1 + 1 + 1 + 25 + 1 + 8 + 1;
     let summary_width = (area.width as usize).saturating_sub(prefix_width).max(1);
     let mut items: Vec<ListItem> = Vec::new();
-    let mut open_count = 0;
-    let mut closed_started = false;
 
-    for (idx, plate) in plates.iter().enumerate() {
-        if plate.status == PlateStatus::Closed && !closed_started {
-            if open_count > 0 {
-                items.push(ListItem::new(Line::from("")));
-            }
-            items.push(ListItem::new(Line::from(Span::styled(
-                "CLOSED",
-                Style::default().add_modifier(Modifier::DIM),
-            ))));
-            closed_started = true;
-        } else if plate.status != PlateStatus::Closed && !closed_started {
-            if open_count == 0 {
-                items.push(ListItem::new(Line::from(Span::styled(
-                    "OPEN",
-                    Style::default().add_modifier(Modifier::DIM),
-                ))));
-            }
-            open_count += 1;
+    for (idx, plate) in open_plates.iter().enumerate() {
+        let is_selected = app.selected_index == Some(idx);
+        items.push(render_plate_item(
+            app,
+            plate,
+            idx,
+            num_width,
+            prefix_width,
+            summary_width,
+            area.width as usize,
+            is_selected,
+        ));
+    }
+
+    if closed_count > 0 {
+        if open_count > 0 {
+            items.push(ListItem::new(Line::from("")));
         }
 
-        let is_selected = app.selected_index == Some(idx);
-        let unseen_marker = if app.is_unseen(&plate.session_id) && plate.status.needs_attention() {
-            "*"
-        } else {
-            " "
-        };
-
-        let status_color = status_color(plate.status);
-        let icon = plate.status.icon();
-
-        let label = format_label(plate.project_name(), plate.git_branch.as_deref());
-
-        let status_short = pad_or_truncate(plate.status.short_name(), 8);
-        let todo = plate.todo_progress.as_deref().unwrap_or("");
-        let summary = plate.summary.as_deref().unwrap_or("");
-        let full_summary = if todo.is_empty() {
-            summary.to_string()
-        } else {
-            format!("{} {}", todo, summary)
-        };
-
-        let style = if is_selected {
+        let closed_header_selected = app.is_on_closed_header();
+        let indicator = if app.closed_expanded { "v" } else { ">" };
+        let header_text = format!("{} CLOSED ({})", indicator, closed_count);
+        let style = if closed_header_selected {
             Style::default()
-                .fg(status_color)
+                .add_modifier(Modifier::DIM)
                 .add_modifier(Modifier::REVERSED)
         } else {
-            Style::default().fg(status_color)
+            Style::default().add_modifier(Modifier::DIM)
         };
+        items.push(ListItem::new(Line::from(Span::styled(header_text, style))));
 
-        let prefix = format!(
-            "[{:>width$}]{} {} {} {}",
-            idx + 1,
-            unseen_marker,
-            icon,
-            label,
-            status_short,
-            width = num_width,
-        );
-
-        if is_selected {
-            let mut lines: Vec<Line> = Vec::new();
-            let indent = " ".repeat(prefix_width);
-            let summary_lines: Vec<&str> = full_summary.split('\n').collect();
-            let full_width = area.width as usize;
-
-            for (line_idx, summary_line) in summary_lines.iter().enumerate() {
-                let line_prefix = if line_idx == 0 {
-                    format!("{} ", prefix)
-                } else {
-                    indent.clone()
-                };
-
-                if summary_line.chars().count() <= summary_width {
-                    let line_text = format!("{}{}", line_prefix, summary_line);
-                    let padded = format!("{:<width$}", line_text, width = full_width);
-                    lines.push(Line::from(Span::styled(padded, style)));
-                } else {
-                    for (chunk_idx, chunk) in summary_line
-                        .chars()
-                        .collect::<Vec<_>>()
-                        .chunks(summary_width)
-                        .enumerate()
-                    {
-                        let chunk_prefix = if line_idx == 0 && chunk_idx == 0 {
-                            format!("{} ", prefix)
-                        } else {
-                            indent.clone()
-                        };
-                        let wrapped: String = chunk.iter().collect();
-                        let line_text = format!("{}{}", chunk_prefix, wrapped);
-                        let padded = format!("{:<width$}", line_text, width = full_width);
-                        lines.push(Line::from(Span::styled(padded, style)));
-                    }
-                }
+        if app.closed_expanded {
+            for (closed_idx, plate) in closed_plates.iter().enumerate() {
+                let display_idx = open_count + 1 + closed_idx;
+                let is_selected = app.selected_index == Some(display_idx);
+                items.push(render_plate_item(
+                    app,
+                    plate,
+                    display_idx,
+                    num_width,
+                    prefix_width,
+                    summary_width,
+                    area.width as usize,
+                    is_selected,
+                ));
             }
-            items.push(ListItem::new(lines));
-        } else {
-            let collapsed_summary = full_summary.replace('\n', ". ");
-            let display_summary = if collapsed_summary.chars().count() > summary_width
-                && summary_width >= 3
-            {
-                let truncated: String = collapsed_summary.chars().take(summary_width - 3).collect();
-                format!("{}...", truncated)
-            } else {
-                collapsed_summary
-            };
-            let line_text = format!("{} {}", prefix, display_summary);
-            items.push(ListItem::new(Line::from(Span::styled(line_text, style))));
         }
     }
 
@@ -175,6 +125,104 @@ fn render_plates(frame: &mut Frame, app: &App, area: Rect) {
 
     let list = List::new(items);
     frame.render_widget(list, area);
+}
+
+fn render_plate_item<'a>(
+    app: &App,
+    plate: &Plate,
+    idx: usize,
+    num_width: usize,
+    prefix_width: usize,
+    summary_width: usize,
+    full_width: usize,
+    is_selected: bool,
+) -> ListItem<'a> {
+    let unseen_marker = if app.is_unseen(&plate.session_id) && plate.status.needs_attention() {
+        "*"
+    } else {
+        " "
+    };
+
+    let status_color = status_color(plate.status);
+    let icon = plate.status.icon();
+
+    let label = format_label(plate.project_name(), plate.git_branch.as_deref());
+
+    let status_short = pad_or_truncate(plate.status.short_name(), 8);
+    let todo = plate.todo_progress.as_deref().unwrap_or("");
+    let summary = plate.summary.as_deref().unwrap_or("");
+    let full_summary = if todo.is_empty() {
+        summary.to_string()
+    } else {
+        format!("{} {}", todo, summary)
+    };
+
+    let style = if is_selected {
+        Style::default()
+            .fg(status_color)
+            .add_modifier(Modifier::REVERSED)
+    } else {
+        Style::default().fg(status_color)
+    };
+
+    let prefix = format!(
+        "[{:>width$}]{} {} {} {}",
+        idx + 1,
+        unseen_marker,
+        icon,
+        label,
+        status_short,
+        width = num_width,
+    );
+
+    if is_selected {
+        let mut lines: Vec<Line> = Vec::new();
+        let indent = " ".repeat(prefix_width);
+        let summary_lines: Vec<&str> = full_summary.split('\n').collect();
+
+        for (line_idx, summary_line) in summary_lines.iter().enumerate() {
+            let line_prefix = if line_idx == 0 {
+                format!("{} ", prefix)
+            } else {
+                indent.clone()
+            };
+
+            if summary_line.chars().count() <= summary_width {
+                let line_text = format!("{}{}", line_prefix, summary_line);
+                let padded = format!("{:<width$}", line_text, width = full_width);
+                lines.push(Line::from(Span::styled(padded, style)));
+            } else {
+                for (chunk_idx, chunk) in summary_line
+                    .chars()
+                    .collect::<Vec<_>>()
+                    .chunks(summary_width)
+                    .enumerate()
+                {
+                    let chunk_prefix = if line_idx == 0 && chunk_idx == 0 {
+                        format!("{} ", prefix)
+                    } else {
+                        indent.clone()
+                    };
+                    let wrapped: String = chunk.iter().collect();
+                    let line_text = format!("{}{}", chunk_prefix, wrapped);
+                    let padded = format!("{:<width$}", line_text, width = full_width);
+                    lines.push(Line::from(Span::styled(padded, style)));
+                }
+            }
+        }
+        ListItem::new(lines)
+    } else {
+        let collapsed_summary = full_summary.replace('\n', ". ");
+        let display_summary =
+            if collapsed_summary.chars().count() > summary_width && summary_width >= 3 {
+                let truncated: String = collapsed_summary.chars().take(summary_width - 3).collect();
+                format!("{}...", truncated)
+            } else {
+                collapsed_summary
+            };
+        let line_text = format!("{} {}", prefix, display_summary);
+        ListItem::new(Line::from(Span::styled(line_text, style)))
+    }
 }
 
 fn render_auth_banner(frame: &mut Frame, area: Rect) {

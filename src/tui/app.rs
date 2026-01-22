@@ -200,28 +200,22 @@ async fn refresh(app: &mut App) {
     app.plates = plates;
 
     if let Some(idx) = app.selected_index {
-        let max_idx = app.display_order().len().saturating_sub(1);
+        let max_idx = app.max_selectable_index();
+        let has_items = !app.open_plates().is_empty() || !app.closed_plates().is_empty();
         if idx > max_idx {
-            app.selected_index = if app.display_order().is_empty() {
-                None
-            } else {
-                Some(max_idx)
-            };
+            app.selected_index = if has_items { Some(max_idx) } else { None };
         }
     }
 }
 
 async fn dismiss(app: &mut App) {
-    let Some(idx) = app.selected_index else {
+    let Some(plate) = app.selected_plate() else {
         return;
     };
-    let plates = app.display_order();
-    let Some(plate) = plates.get(idx) else {
-        return;
-    };
+    let session_id = plate.session_id.clone();
 
     let client = reqwest::Client::new();
-    let url = format!("{}/plates/{}", DAEMON_URL, plate.session_id);
+    let url = format!("{}/plates/{}", DAEMON_URL, session_id);
     let _ = client.delete(&url).send().await;
 
     refresh(app).await;

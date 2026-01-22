@@ -2,23 +2,9 @@ use anyhow::Result;
 use std::os::unix::process::CommandExt;
 use std::process::Command;
 
+use super::tmux;
 use crate::ensure_daemon_running;
 use crate::hook::DAEMON_URL;
-
-static mut CHILD_PID: libc::pid_t = 0;
-static mut PROJECT_PATH: Option<String> = None;
-
-extern "C" fn signal_handler(sig: libc::c_int) {
-    unsafe {
-        if CHILD_PID > 0 {
-            libc::kill(CHILD_PID, sig);
-        }
-        if let Some(ref path) = PROJECT_PATH {
-            notify_stopped(path);
-        }
-        std::process::exit(0);
-    }
-}
 
 fn notify_stopped(project_path: &str) {
     let _ = reqwest::blocking::Client::new()
@@ -29,48 +15,59 @@ fn notify_stopped(project_path: &str) {
 }
 
 pub fn run(claude_args: Vec<String>) -> Result<()> {
+    tmux::check_tmux_available()?;
+    tmux::check_tmux_version()?;
     ensure_daemon_running();
 
     let project_path = std::env::current_dir()
         .map(|p| p.to_string_lossy().to_string())
         .unwrap_or_else(|_| ".".to_string());
 
-    unsafe {
-        PROJECT_PATH = Some(project_path.clone());
+    let session = tmux::get_session_name();
+    let window = tmux::generate_window_name();
+    let tmux_target = tmux::format_tmux_target(&session, &window);
+    let in_tmux = tmux::is_inside_tmux();
+
+    if !in_tmux {
+        tmux::ensure_session_exists(&session)?;
     }
 
-    let pid = unsafe { libc::fork() };
-
-    if pid == 0 {
-        let mut cmd = Command::new("claude");
-        cmd.args(&claude_args);
-        cmd.env("PLATE_SPINNER", "1");
-        let err = cmd.exec();
-        eprintln!("exec failed: {}", err);
-        std::process::exit(1);
-    } else if pid > 0 {
-        unsafe {
-            CHILD_PID = pid;
-            libc::signal(
-                libc::SIGHUP,
-                signal_handler as *const () as libc::sighandler_t,
-            );
-            libc::signal(
-                libc::SIGTERM,
-                signal_handler as *const () as libc::sighandler_t,
-            );
-            libc::signal(
-                libc::SIGINT,
-                signal_handler as *const () as libc::sighandler_t,
-            );
-
-            let mut status: libc::c_int = 0;
-            libc::waitpid(pid, &mut status, 0);
-        }
-        notify_stopped(&project_path);
+    let claude_args_str = if claude_args.is_empty() {
+        String::new()
     } else {
-        anyhow::bail!("fork failed");
+        format!(" {}", shell_words::join(&claude_args))
+    };
+
+    let mut cmd = Command::new("tmux");
+    cmd.args(["new-window", "-n", &window]);
+
+    if !in_tmux {
+        cmd.args(["-t", &format!("{}:", &session)]);
     }
 
+    cmd.args([
+        "-e",
+        "PLATE_SPINNER=1",
+        "-e",
+        &format!("PLATE_SPINNER_TMUX_TARGET={}", tmux_target),
+        "--",
+        "sh",
+        "-c",
+        &format!("claude{}; exit", claude_args_str),
+    ]);
+
+    let status = cmd.status()?;
+    if !status.success() {
+        anyhow::bail!("Failed to create tmux window");
+    }
+
+    if !in_tmux {
+        let err = Command::new("tmux")
+            .args(["attach", "-t", &tmux_target])
+            .exec();
+        eprintln!("Failed to attach to tmux: {}", err);
+    }
+
+    notify_stopped(&project_path);
     Ok(())
 }

@@ -108,23 +108,27 @@ pub fn summarize_session(transcript_path: &str) -> Option<String> {
         return None;
     }
 
-    let context: String = messages
-        .iter()
-        .rev()
-        .take(15)
-        .rev()
-        .cloned()
-        .collect::<Vec<_>>()
-        .join("\n");
+    // Anchor + window: first 5 messages (goal) + last 10 messages (current activity)
+    let context = if messages.len() <= 15 {
+        messages.join("\n")
+    } else {
+        let first: Vec<_> = messages.iter().take(5).cloned().collect();
+        let last: Vec<_> = messages.iter().rev().take(10).rev().cloned().collect();
+        format!("{}\n...\n{}", first.join("\n"), last.join("\n"))
+    };
 
     let client = reqwest::blocking::Client::new();
     let request = ApiRequest {
         model: "claude-3-5-haiku-latest".to_string(),
-        max_tokens: 30,
+        max_tokens: 60,
         messages: vec![Message {
             role: "user".to_string(),
             content: format!(
-                "What is this conversation about? Reply with ONLY a 3-8 word phrase, nothing else.\n\n{}",
+                "Summarize this conversation in the format: Goal: status\n\
+                 - Goal = 2-4 word title of the overall task\n\
+                 - status = what's happening now (can be longer)\n\
+                 Example: 'Auth system: Running integration tests after fixing login'\n\
+                 Reply with ONLY the summary on one line, nothing else.\n\n{}",
                 context
             ),
         }],

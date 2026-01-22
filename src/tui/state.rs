@@ -15,6 +15,7 @@ pub struct App {
     pub show_sound_settings: bool,
     pub sound_settings_row: usize,
     pub show_auth_banner: bool,
+    pub closed_expanded: bool,
 }
 
 impl App {
@@ -32,6 +33,7 @@ impl App {
             show_sound_settings: false,
             sound_settings_row: 0,
             show_auth_banner: !has_api_key && !banner_dismissed,
+            closed_expanded: false,
         }
     }
 
@@ -41,16 +43,11 @@ impl App {
         let _ = std::fs::write(&dismiss_path, "");
     }
 
-    pub fn display_order(&self) -> Vec<&Plate> {
+    pub fn open_plates(&self) -> Vec<&Plate> {
         let mut open: Vec<_> = self
             .plates
             .iter()
             .filter(|s| s.status != PlateStatus::Closed)
-            .collect();
-        let mut closed: Vec<_> = self
-            .plates
-            .iter()
-            .filter(|s| s.status == PlateStatus::Closed)
             .collect();
 
         open.sort_by(|a, b| {
@@ -59,25 +56,67 @@ impl App {
             b_needs.cmp(&a_needs)
         });
 
-        open.append(&mut closed);
         open
+    }
+
+    pub fn closed_plates(&self) -> Vec<&Plate> {
+        self.plates
+            .iter()
+            .filter(|s| s.status == PlateStatus::Closed)
+            .collect()
+    }
+
+    pub fn display_order(&self) -> Vec<&Plate> {
+        let mut open = self.open_plates();
+        if self.closed_expanded {
+            let mut closed = self.closed_plates();
+            open.append(&mut closed);
+        }
+        open
+    }
+
+    pub fn is_on_closed_header(&self) -> bool {
+        let open_count = self.open_plates().len();
+        let closed_count = self.closed_plates().len();
+        closed_count > 0 && self.selected_index == Some(open_count)
+    }
+
+    pub fn toggle_closed(&mut self) {
+        self.closed_expanded = !self.closed_expanded;
+    }
+
+    pub fn max_selectable_index(&self) -> usize {
+        let open_count = self.open_plates().len();
+        let closed_count = self.closed_plates().len();
+        if closed_count == 0 {
+            open_count.saturating_sub(1)
+        } else if self.closed_expanded {
+            open_count + closed_count
+        } else {
+            open_count
+        }
     }
 
     pub fn move_up(&mut self) {
         match self.selected_index {
             Some(idx) if idx > 0 => self.selected_index = Some(idx - 1),
-            None if !self.display_order().is_empty() => {
-                self.selected_index = Some(self.display_order().len() - 1)
+            None => {
+                let max = self.max_selectable_index();
+                if max > 0 || !self.open_plates().is_empty() || self.closed_plates().len() > 0 {
+                    self.selected_index = Some(max);
+                }
             }
             _ => {}
         }
     }
 
     pub fn move_down(&mut self) {
-        let max = self.display_order().len().saturating_sub(1);
+        let max = self.max_selectable_index();
         match self.selected_index {
             Some(idx) if idx < max => self.selected_index = Some(idx + 1),
-            None if !self.display_order().is_empty() => self.selected_index = Some(0),
+            None if max > 0 || !self.open_plates().is_empty() || self.closed_plates().len() > 0 => {
+                self.selected_index = Some(0)
+            }
             _ => {}
         }
     }
@@ -87,28 +126,41 @@ impl App {
     }
 
     pub fn select(&mut self) {
-        let plates = self.display_order();
-        if let Some(idx) = self.selected_index {
-            if let Some(plate) = plates.get(idx) {
-                self.resume_plate = Some((plate.session_id.clone(), plate.project_path.clone()));
-                self.should_quit = true;
-            }
+        if self.is_on_closed_header() {
+            self.toggle_closed();
+            return;
+        }
+
+        if let Some(plate) = self.selected_plate() {
+            self.resume_plate = Some((plate.session_id.clone(), plate.project_path.clone()));
+            self.should_quit = true;
+        }
+    }
+
+    pub fn selected_plate(&self) -> Option<&Plate> {
+        let idx = self.selected_index?;
+        let open_count = self.open_plates().len();
+
+        if idx < open_count {
+            self.open_plates().get(idx).copied()
+        } else if self.closed_expanded && idx > open_count {
+            let closed_idx = idx - open_count - 1;
+            self.closed_plates().get(closed_idx).copied()
+        } else {
+            None
         }
     }
 
     pub fn jump(&mut self, index: usize) {
-        let max = self.display_order().len();
-        if index < max {
+        let max = self.max_selectable_index();
+        if index <= max {
             self.selected_index = Some(index);
         }
     }
 
     pub fn mark_seen(&mut self) {
-        let plates = self.display_order();
-        if let Some(idx) = self.selected_index {
-            if let Some(plate) = plates.get(idx) {
-                self.seen_plates.insert(plate.session_id.clone());
-            }
+        if let Some(plate) = self.selected_plate() {
+            self.seen_plates.insert(plate.session_id.clone());
         }
     }
 
