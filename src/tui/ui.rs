@@ -53,7 +53,7 @@ fn render_plates(frame: &mut Frame, app: &App, area: Rect) {
         (plates.len().ilog10() + 1) as usize
     };
     let prefix_width = 2 + num_width + 1 + 1 + 1 + 1 + 25 + 1 + 8 + 1;
-    let summary_width = (area.width as usize).saturating_sub(prefix_width);
+    let summary_width = (area.width as usize).saturating_sub(prefix_width).max(1);
     let mut items: Vec<ListItem> = Vec::new();
     let mut open_count = 0;
     let mut closed_started = false;
