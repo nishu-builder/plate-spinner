@@ -2,6 +2,9 @@
 name = "plate-spinner"
 version = "0.1.0"
 edition = "2021"
+description = "A CLI tool for spinning plates"
+repository = "https://github.com/nishu-builder/plate-spinner"
+license = "MIT"
 
 [[bin]]
 name = "sp"
@@ -29,3 +32,8 @@ tokio-tungstenite = "0.24"
 [profile.release]
 lto = true
 strip = true
+
+# The profile that 'dist' will build with
+[profile.dist]
+inherits = "release"
+lto = "thin"
