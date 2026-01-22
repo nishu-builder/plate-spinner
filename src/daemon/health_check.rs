@@ -25,10 +25,7 @@ fn check_stale_statuses(state: &Arc<AppState>) {
             .filter(|p| p.status.needs_attention() && p.status != PlateStatus::Idle)
             .filter_map(|p| {
                 let transcript_path = p.transcript_path.as_ref()?;
-                let transcript_mtime = std::fs::metadata(transcript_path)
-                    .ok()?
-                    .modified()
-                    .ok()?;
+                let transcript_mtime = std::fs::metadata(transcript_path).ok()?.modified().ok()?;
 
                 let updated_at = chrono::DateTime::parse_from_rfc3339(&p.updated_at)
                     .ok()?

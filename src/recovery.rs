@@ -1,6 +1,7 @@
 pub const HEALTH_CHECK_INTERVAL_SECS: u64 = 10;
 pub const STALENESS_THRESHOLD_SECS: i64 = 2;
-pub const MAX_RECOVERY_TIME_SECS: u64 = HEALTH_CHECK_INTERVAL_SECS + STALENESS_THRESHOLD_SECS as u64;
+pub const MAX_RECOVERY_TIME_SECS: u64 =
+    HEALTH_CHECK_INTERVAL_SECS + STALENESS_THRESHOLD_SECS as u64;
 
 pub fn is_stale(transcript_mtime_secs: i64, last_event_time_secs: i64) -> bool {
     transcript_mtime_secs > last_event_time_secs + STALENESS_THRESHOLD_SECS

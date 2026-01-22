@@ -92,3 +92,19 @@ sp              # daemon auto-restarts if binary changed
 ```
 
 The daemon includes a build timestamp, so any `sp` command after rebuilding will detect the version mismatch and restart the daemon automatically. TUI changes require quitting (`q`) and restarting `sp`.
+
+### Testing and Linting
+
+```bash
+cargo test                                            # run tests
+cargo fmt --all -- --check                            # check formatting
+cargo clippy --all-targets --all-features -- -D warnings  # run linter
+```
+
+### Git Hooks
+
+Install pre-commit hooks to run formatting and linting checks before each commit:
+
+```bash
+./scripts/install-hooks.sh
+```
