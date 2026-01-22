@@ -78,7 +78,7 @@ fn render_plates(frame: &mut Frame, app: &App, area: Rect) {
             open_count += 1;
         }
 
-        let is_selected = idx == app.selected_index;
+        let is_selected = app.selected_index == Some(idx);
         let unseen_marker = if app.is_unseen(&plate.session_id) && plate.status.needs_attention() {
             "*"
         } else {
@@ -166,9 +166,9 @@ fn render_auth_banner(frame: &mut Frame, area: Rect) {
 
 fn render_footer(frame: &mut Frame, app: &App, area: Rect) {
     let text = if app.show_auth_banner {
-        " q:quit  r:refresh  s:sounds  enter:resume  del:dismiss  1-9:jump  d:dismiss banner "
+        " q:quit  r:refresh  s:sounds  enter:resume  del:dismiss  1-9:jump  esc:deselect  d:dismiss banner "
     } else {
-        " q:quit  r:refresh  s:sounds  enter:resume  del:dismiss  1-9:jump "
+        " q:quit  r:refresh  s:sounds  enter:resume  del:dismiss  1-9:jump  esc:deselect "
     };
     let footer = Paragraph::new(text).style(Style::default().add_modifier(Modifier::DIM));
     frame.render_widget(footer, area);

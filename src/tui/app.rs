@@ -58,6 +58,7 @@ async fn handle_key(app: &mut App, key: KeyCode) {
 
     match key {
         KeyCode::Char('q') => app.should_quit = true,
+        KeyCode::Esc => app.deselect(),
         KeyCode::Char('r') => refresh(app).await,
         KeyCode::Char('s') => {
             app.show_sound_settings = true;
@@ -198,15 +199,24 @@ async fn refresh(app: &mut App) {
 
     app.plates = plates;
 
-    let max_idx = app.display_order().len().saturating_sub(1);
-    if app.selected_index > max_idx {
-        app.selected_index = max_idx;
+    if let Some(idx) = app.selected_index {
+        let max_idx = app.display_order().len().saturating_sub(1);
+        if idx > max_idx {
+            app.selected_index = if app.display_order().is_empty() {
+                None
+            } else {
+                Some(max_idx)
+            };
+        }
     }
 }
 
 async fn dismiss(app: &mut App) {
+    let Some(idx) = app.selected_index else {
+        return;
+    };
     let plates = app.display_order();
-    let Some(plate) = plates.get(app.selected_index) else {
+    let Some(plate) = plates.get(idx) else {
         return;
     };
 

@@ -6,7 +6,7 @@ use crate::models::{Plate, PlateStatus};
 
 pub struct App {
     pub plates: Vec<Plate>,
-    pub selected_index: usize,
+    pub selected_index: Option<usize>,
     pub seen_plates: HashSet<String>,
     pub previous_statuses: HashMap<String, PlateStatus>,
     pub config: Config,
@@ -23,7 +23,7 @@ impl App {
         let banner_dismissed = get_data_dir().join(".auth_banner_dismissed").exists();
         Self {
             plates: Vec::new(),
-            selected_index: 0,
+            selected_index: Some(0),
             seen_plates: HashSet::new(),
             previous_statuses: HashMap::new(),
             config,
@@ -64,37 +64,51 @@ impl App {
     }
 
     pub fn move_up(&mut self) {
-        if self.selected_index > 0 {
-            self.selected_index -= 1;
+        match self.selected_index {
+            Some(idx) if idx > 0 => self.selected_index = Some(idx - 1),
+            None if !self.display_order().is_empty() => {
+                self.selected_index = Some(self.display_order().len() - 1)
+            }
+            _ => {}
         }
     }
 
     pub fn move_down(&mut self) {
         let max = self.display_order().len().saturating_sub(1);
-        if self.selected_index < max {
-            self.selected_index += 1;
+        match self.selected_index {
+            Some(idx) if idx < max => self.selected_index = Some(idx + 1),
+            None if !self.display_order().is_empty() => self.selected_index = Some(0),
+            _ => {}
         }
+    }
+
+    pub fn deselect(&mut self) {
+        self.selected_index = None;
     }
 
     pub fn select(&mut self) {
         let plates = self.display_order();
-        if let Some(plate) = plates.get(self.selected_index) {
-            self.resume_plate = Some((plate.session_id.clone(), plate.project_path.clone()));
-            self.should_quit = true;
+        if let Some(idx) = self.selected_index {
+            if let Some(plate) = plates.get(idx) {
+                self.resume_plate = Some((plate.session_id.clone(), plate.project_path.clone()));
+                self.should_quit = true;
+            }
         }
     }
 
     pub fn jump(&mut self, index: usize) {
         let max = self.display_order().len();
         if index < max {
-            self.selected_index = index;
+            self.selected_index = Some(index);
         }
     }
 
     pub fn mark_seen(&mut self) {
         let plates = self.display_order();
-        if let Some(plate) = plates.get(self.selected_index) {
-            self.seen_plates.insert(plate.session_id.clone());
+        if let Some(idx) = self.selected_index {
+            if let Some(plate) = plates.get(idx) {
+                self.seen_plates.insert(plate.session_id.clone());
+            }
         }
     }
 

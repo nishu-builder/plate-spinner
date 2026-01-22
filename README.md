@@ -1,6 +1,6 @@
 # Plate-Spinner
 
-Dashboard for managing multiple concurrent Claude Code plates.
+Dashboard for managing multiple concurrent Claude Code sessions.
 
 ## Installation
 
@@ -24,20 +24,9 @@ sp run                  # Start tracked plate (terminal 2)
 sp run                  # Start another (terminal 3)
 ```
 
-## Usage
+<img src="assets/screenshot.png" alt="Plate-Spinner screenshot" width="900"/>
 
-**Dashboard** (`sp`): Shows all plates in two groups:
-- **OPEN**: Active plates, sorted with "needs attention" first
-- **CLOSED**: Plates that have exited
 
-Keybindings:
-- `1-9` - Jump to plate and resume
-- `up/down` - Navigate plates
-- `enter` - Resume selected plate
-- `delete` - Dismiss selected plate
-- `s` - Sound settings
-- `r` - Refresh
-- `q` - Quit
 
 ## Plate States
 
