@@ -37,8 +37,8 @@ echo '{"session_id":"e2e-test-001","cwd":"/tmp/project"}' | \
   ~/.plate-spinner/hooks/stop.sh
 
 RESULT=$(curl -s http://localhost:7890/sessions)
-echo "$RESULT" | grep -q '"status": "idle"' || echo "$RESULT" | grep -q '"status":"idle"' || { echo "FAIL: Status should be idle"; echo "$RESULT"; exit 1; }
-echo "OK: Stop sets idle status"
+echo "$RESULT" | grep -q '"status": "closed"' || echo "$RESULT" | grep -q '"status":"closed"' || { echo "FAIL: Status should be closed"; echo "$RESULT"; exit 1; }
+echo "OK: Stop sets closed status"
 
 # Cleanup
 kill $DAEMON_PID 2>/dev/null || true

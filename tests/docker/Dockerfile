@@ -14,6 +14,7 @@ WORKDIR /app
 # Copy project files
 COPY pyproject.toml uv.lock README.md ./
 COPY src/ ./src/
+COPY plugin/ ./plugin/
 
 # Install the package
 RUN uv sync --no-dev
