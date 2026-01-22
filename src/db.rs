@@ -93,6 +93,7 @@ impl Database {
         project_path: &str,
         transcript_path: Option<&str>,
         git_branch: Option<&str>,
+        tmux_target: Option<&str>,
         status: &str,
         event_type: &str,
         tool_name: Option<&str>,
@@ -112,14 +113,14 @@ impl Database {
             self.conn
                 .execute("DELETE FROM plates WHERE session_id = ?", [&placeholder_id])?;
             self.conn.execute(
-                "INSERT INTO plates (session_id, project_path, transcript_path, git_branch, status, last_event_type, last_tool, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                params![session_id, project_path, transcript_path, git_branch, status, event_type, tool_name, now, now],
+                "INSERT INTO plates (session_id, project_path, transcript_path, git_branch, tmux_target, status, last_event_type, last_tool, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                params![session_id, project_path, transcript_path, git_branch, tmux_target, status, event_type, tool_name, now, now],
             )?;
             Ok(false)
         } else {
             self.conn.execute(
-                "UPDATE plates SET status = ?, last_event_type = ?, last_tool = COALESCE(?, last_tool), transcript_path = COALESCE(?, transcript_path), git_branch = COALESCE(?, git_branch), updated_at = ? WHERE session_id = ?",
-                params![status, event_type, tool_name, transcript_path, git_branch, now, session_id],
+                "UPDATE plates SET status = ?, last_event_type = ?, last_tool = COALESCE(?, last_tool), transcript_path = COALESCE(?, transcript_path), git_branch = COALESCE(?, git_branch), tmux_target = COALESCE(?, tmux_target), updated_at = ? WHERE session_id = ?",
+                params![status, event_type, tool_name, transcript_path, git_branch, tmux_target, now, session_id],
             )?;
             Ok(true)
         }
