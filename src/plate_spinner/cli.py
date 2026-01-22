@@ -128,8 +128,7 @@ def cmd_kill(args: argparse.Namespace) -> None:
         print("No daemon running")
 
 
-SCRIPTS_DIR = Path(__file__).parent.parent.parent / "plugin" / "scripts"
-HOOK_SCRIPT_NAMES = ["session-start.sh", "pre-tool-use.sh", "post-tool-use.sh", "stop.sh"]
+from .hooks import SCRIPTS_DIR, HOOK_SCRIPT_NAMES
 
 
 def cmd_config(args: argparse.Namespace) -> None:

@@ -3,19 +3,25 @@ INPUT=$(cat)
 
 curl -s --connect-timeout 1 http://localhost:7890/health >/dev/null 2>&1 || exit 0
 
-GIT_BRANCH=$(git -C "$(echo "$INPUT" | jq -r '.cwd // "."')" rev-parse --abbrev-ref HEAD 2>/dev/null || echo "")
-
-if command -v jq &>/dev/null; then
-  PAYLOAD=$(echo "$INPUT" | jq -c --arg branch "$GIT_BRANCH" '{
-    session_id: .session_id,
-    project_path: .cwd,
-    event_type: "session_start",
-    transcript_path: .transcript_path,
-    git_branch: (if $branch == "" then null else $branch end)
-  }')
-else
-  PAYLOAD="$INPUT"
-fi
+PAYLOAD=$(echo "$INPUT" | python3 -c '
+import json, sys, subprocess
+d = json.load(sys.stdin)
+cwd = d.get("cwd", ".")
+try:
+    branch = subprocess.check_output(
+        ["git", "-C", cwd, "rev-parse", "--abbrev-ref", "HEAD"],
+        stderr=subprocess.DEVNULL
+    ).decode().strip()
+except:
+    branch = None
+print(json.dumps({
+    "session_id": d.get("session_id"),
+    "project_path": d.get("cwd"),
+    "event_type": "session_start",
+    "transcript_path": d.get("transcript_path"),
+    "git_branch": branch if branch else None
+}))
+')
 
 curl -s -X POST http://localhost:7890/events \
   -H "Content-Type: application/json" \

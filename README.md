@@ -60,5 +60,4 @@ Daemon (SQLite + WebSocket) --> TUI
 
 - Python 3.11+
 - Claude Code
-- jq (optional, improves hook reliability)
 - `ANTHROPIC_API_KEY` (optional, enables summaries)

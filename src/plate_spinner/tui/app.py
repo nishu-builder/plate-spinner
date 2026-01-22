@@ -298,6 +298,8 @@ class PlateSpinnerApp(App):
         self._last_attention_count: int = -1
         self._render_lock = asyncio.Lock()
         self.selected_index: int = 0
+        self._api_key_configured: bool | None = None
+        self._hooks_installed: bool | None = None
 
     def compose(self) -> ComposeResult:
         yield Header()
@@ -308,8 +310,20 @@ class PlateSpinnerApp(App):
         self.title = "Plate-Spinner"
         if self.config.theme.name:
             self.theme = self.config.theme.name
+        await self._fetch_daemon_status()
         await self.action_refresh()
         self.run_worker(self.connect_websocket())
+
+    async def _fetch_daemon_status(self) -> None:
+        try:
+            async with httpx.AsyncClient() as client:
+                response = await client.get(f"{self.daemon_url}/status")
+                data = response.json()
+                self._api_key_configured = data.get("api_key_configured", False)
+                self._hooks_installed = data.get("hooks_installed", False)
+        except httpx.RequestError:
+            self._api_key_configured = None
+            self._hooks_installed = None
 
     def watch_theme(self, theme: str) -> None:
         self.config.theme.name = theme
@@ -388,7 +402,12 @@ class PlateSpinnerApp(App):
             if not self.sessions:
                 if not main.query("Static#empty-message"):
                     await main.remove_children()
-                    await main.mount(Static("\nNo active sessions.\n\nRun 'sp run' to start a tracked session.", id="empty-message"))
+                    msg = "\nNo active sessions.\n\nRun 'sp run' to start a tracked session."
+                    if self._hooks_installed is False:
+                        msg += "\n\n[red]Hooks outdated or missing. Run 'sp install' to update.[/]"
+                    if self._api_key_configured is False:
+                        msg += "\n\n[yellow]Note: ANTHROPIC_API_KEY not set (summaries disabled)[/]"
+                    await main.mount(Static(msg, id="empty-message"))
                 self.sub_title = ""
                 self.display_order = []
                 self._update_terminal_title(0)

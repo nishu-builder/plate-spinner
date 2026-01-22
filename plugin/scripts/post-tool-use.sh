@@ -1,26 +1,19 @@
 #!/bin/bash
-# Read JSON from stdin
 INPUT=$(cat)
 
-# Check if daemon is running
 curl -s --connect-timeout 1 http://localhost:7890/health >/dev/null 2>&1 || exit 0
 
-# Transform stdin JSON to match HookEvent model
-# stdin has: session_id, cwd (as project_path), hook_event_name, tool_name, tool_input
-# HookEvent needs: session_id, project_path, event_type, tool_name, tool_params
-
-if command -v jq &>/dev/null; then
-  PAYLOAD=$(echo "$INPUT" | jq -c '{
-    session_id: .session_id,
-    project_path: .cwd,
-    event_type: "tool_call",
-    tool_name: .tool_name,
-    tool_params: .tool_input
-  }')
-else
-  # Fallback: forward as-is, daemon should handle
-  PAYLOAD="$INPUT"
-fi
+PAYLOAD=$(echo "$INPUT" | python3 -c '
+import json, sys
+d = json.load(sys.stdin)
+print(json.dumps({
+    "session_id": d.get("session_id"),
+    "project_path": d.get("cwd"),
+    "event_type": "tool_call",
+    "tool_name": d.get("tool_name"),
+    "tool_params": d.get("tool_input")
+}))
+')
 
 curl -s -X POST http://localhost:7890/events \
   -H "Content-Type: application/json" \

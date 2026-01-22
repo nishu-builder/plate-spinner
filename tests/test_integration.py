@@ -118,17 +118,20 @@ def test_hook_script_transformation():
 
     result = subprocess.run(
         ["bash", "-c", f'''
-        echo '{hook_input}' | jq -c '{{
-            session_id: .session_id,
-            project_path: .cwd,
-            event_type: "tool_start",
-            tool_name: .tool_name,
-            tool_params: .tool_input
-        }}'
+        echo '{hook_input}' | python3 -c '
+import json, sys
+d = json.load(sys.stdin)
+print(json.dumps({{
+    "session_id": d.get("session_id"),
+    "project_path": d.get("cwd"),
+    "event_type": "tool_start",
+    "tool_name": d.get("tool_name"),
+    "tool_params": d.get("tool_input")
+}}))
+'
         '''],
         capture_output=True,
         text=True,
-        env={"PATH": subprocess.os.environ.get("PATH", "")},
     )
 
     output = json.loads(result.stdout.strip())

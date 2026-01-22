@@ -5,9 +5,10 @@ from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 
 from pydantic import BaseModel
 
+from ..hooks import hooks_installed
 from .db import Database
 from .models import HookEvent, SessionStatus
-from .summarizer import summarize_session
+from .summarizer import get_api_key, summarize_session
 
 
 def _determine_status(event: HookEvent) -> SessionStatus:
@@ -133,6 +134,14 @@ def create_app(db: Database) -> FastAPI:
     @app.get("/health")
     async def health() -> dict:
         return {"status": "ok"}
+
+    @app.get("/status")
+    async def status() -> dict:
+        return {
+            "status": "ok",
+            "api_key_configured": get_api_key() is not None,
+            "hooks_installed": hooks_installed(),
+        }
 
     @app.post("/events")
     async def post_event(event: HookEvent) -> dict:
