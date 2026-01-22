@@ -1,13 +1,22 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-if [ $# -ne 1 ]; then
-    echo "Usage: $0 <version>"
+CURRENT_VERSION=$(grep '^version = ' Cargo.toml | head -1 | sed 's/version = "\(.*\)"/\1/')
+
+if [ $# -eq 0 ]; then
+    IFS='.' read -r major minor patch <<< "$CURRENT_VERSION"
+    patch=$((patch + 1))
+    VERSION="$major.$minor.$patch"
+    echo "Auto-incrementing patch version: $CURRENT_VERSION -> $VERSION"
+elif [ $# -eq 1 ]; then
+    VERSION="$1"
+else
+    echo "Usage: $0 [version]"
     echo "Example: $0 0.2.0"
+    echo "If no version provided, patch version is auto-incremented"
     exit 1
 fi
 
-VERSION="$1"
 TAG="v$VERSION"
 
 if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9.]+)?$ ]]; then
@@ -25,7 +34,6 @@ if git rev-parse "$TAG" >/dev/null 2>&1; then
     exit 1
 fi
 
-CURRENT_VERSION=$(grep '^version = ' Cargo.toml | head -1 | sed 's/version = "\(.*\)"/\1/')
 echo "Current version: $CURRENT_VERSION"
 echo "New version: $VERSION"
 echo ""
@@ -45,7 +53,9 @@ git add Cargo.toml
 git commit -m "Release $VERSION"
 git tag "$TAG"
 
+git push origin main
+git push origin "$TAG"
+
 echo ""
-echo "Release $VERSION prepared. To publish:"
-echo "  git push origin main"
-echo "  git push origin $TAG"
+echo "Release $VERSION pushed. GitHub Actions will build and publish the release."
+echo "https://github.com/nishu-builder/plate-spinner/actions"

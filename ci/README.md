@@ -2,30 +2,19 @@
 
 This project uses [cargo-dist](https://opensource.axo.dev/cargo-dist/) for automated releases.
 
-## How It Works
-
-When you push a version tag (e.g., `v0.2.0`), GitHub Actions automatically:
-
-1. Builds binaries for all platforms (macOS, Linux, Windows)
-2. Creates installer scripts (shell for Unix, PowerShell for Windows)
-3. Publishes a GitHub Release with all artifacts
-
 ## Creating a Release
 
-### Option 1: Use the release script
-
 ```bash
-./ci/release.sh 0.2.0
-git push origin main
-git push origin v0.2.0
+./ci/release.sh        # auto-increment patch (0.1.0 -> 0.1.1)
+./ci/release.sh 0.2.0  # or specify a version
 ```
 
-### Option 2: Manual steps
+The script updates `Cargo.toml`, commits, tags, and pushes.
 
-1. Update `version` in `Cargo.toml`
-2. Commit: `git commit -am "Release 0.2.0"`
-3. Tag: `git tag v0.2.0`
-4. Push: `git push origin main && git push origin v0.2.0`
+When a tag is pushed, a github action will:
+1. Build binaries for all platforms (macOS, Linux, Windows)
+2. Create installer scripts (shell for Unix, PowerShell for Windows)
+3. Publish a GitHub Release with all artifacts
 
 ## Installation Commands
 
