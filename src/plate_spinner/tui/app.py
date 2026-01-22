@@ -52,7 +52,7 @@ STATUS_COLORS = {
 
 STATUS_SHORT = {
     "starting": "start",
-    "running": "run",
+    "running": "running",
     "idle": "idle",
     "awaiting_input": "input",
     "awaiting_approval": "approve",
