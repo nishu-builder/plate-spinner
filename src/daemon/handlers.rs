@@ -110,6 +110,7 @@ pub async fn post_event(
             &event.project_path,
             event.transcript_path.as_deref(),
             event.git_branch.as_deref(),
+            event.tmux_target.as_deref(),
             status.as_str(),
             &event.event_type,
             event.tool_name.as_deref(),
