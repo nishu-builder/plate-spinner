@@ -18,7 +18,15 @@ sp                      # Open dashboard (terminal 3)
 - **OPEN**: Active sessions, sorted with "needs attention" first
 - **CLOSED**: Sessions that have exited
 
-Press `1-9` to resume a session. Press `x` then `1-9` to dismiss one.
+Keybindings:
+- `1-9` - Jump to session and resume
+- `up/down` - Navigate sessions
+- `enter` - Resume selected session
+- `delete` - Dismiss selected session
+- `c` - Toggle closed/open
+- `s` - Sound settings
+- `r` - Refresh
+- `q` - Quit
 
 ## Session States
 
@@ -44,6 +52,11 @@ sp run [args]   Launch Claude with tracking
 sp install      Install/update hooks, print settings config
 sp kill         Stop daemon
 sp sessions     List sessions as JSON
+sp daemon       Run daemon in foreground
+sp config       Manage configuration
+  path          Print config file path
+  export        Export config to stdout
+  import <file> Import config from file
 ```
 
 ## Architecture
