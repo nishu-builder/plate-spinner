@@ -48,7 +48,7 @@ impl App {
             b_needs.cmp(&a_needs)
         });
 
-        open.extend(closed.drain(..));
+        open.append(&mut closed);
         open
     }
 

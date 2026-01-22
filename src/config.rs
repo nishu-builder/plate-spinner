@@ -38,12 +38,24 @@ impl Default for SoundsConfig {
     }
 }
 
-fn default_true() -> bool { true }
-fn default_tap() -> String { "tap".to_string() }
-fn default_bell() -> String { "bell".to_string() }
-fn default_error() -> String { "error".to_string() }
-fn default_pop() -> String { "pop".to_string() }
-fn default_none() -> String { "none".to_string() }
+fn default_true() -> bool {
+    true
+}
+fn default_tap() -> String {
+    "tap".to_string()
+}
+fn default_bell() -> String {
+    "bell".to_string()
+}
+fn default_error() -> String {
+    "error".to_string()
+}
+fn default_pop() -> String {
+    "pop".to_string()
+}
+fn default_none() -> String {
+    "none".to_string()
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ThemeConfig {
@@ -59,7 +71,9 @@ impl Default for ThemeConfig {
     }
 }
 
-fn default_theme() -> String { "textual-dark".to_string() }
+fn default_theme() -> String {
+    "textual-dark".to_string()
+}
 
 pub fn get_config_path() -> PathBuf {
     dirs::home_dir()
@@ -70,9 +84,7 @@ pub fn get_config_path() -> PathBuf {
 }
 
 pub fn get_data_dir() -> PathBuf {
-    dirs::home_dir()
-        .unwrap_or_default()
-        .join(".plate-spinner")
+    dirs::home_dir().unwrap_or_default().join(".plate-spinner")
 }
 
 pub fn load_config() -> Config {
@@ -95,7 +107,9 @@ pub fn save_config(config: &Config) -> anyhow::Result<()> {
     Ok(())
 }
 
-pub const AVAILABLE_SOUNDS: &[&str] = &["alert", "bell", "click", "error", "long-pop", "pop", "tap", "none"];
+pub const AVAILABLE_SOUNDS: &[&str] = &[
+    "alert", "bell", "click", "error", "long-pop", "pop", "tap", "none",
+];
 
 pub const SOUND_ALERT: &[u8] = include_bytes!("../sounds/alert.wav");
 pub const SOUND_BELL: &[u8] = include_bytes!("../sounds/bell.wav");

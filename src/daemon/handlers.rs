@@ -5,8 +5,9 @@ use axum::{
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
-use crate::models::{HookEvent, PlateStatus};
 use super::state::{AppState, WsMessage};
+use super::summarizer;
+use crate::models::{HookEvent, PlateStatus};
 
 #[derive(Serialize)]
 pub struct StatusResponse {
@@ -22,7 +23,7 @@ pub async fn health() -> Json<serde_json::Value> {
 }
 
 pub async fn status() -> Json<StatusResponse> {
-    let api_key_configured = std::env::var("ANTHROPIC_API_KEY").is_ok();
+    let api_key_configured = summarizer::get_api_key().is_some();
     Json(StatusResponse {
         status: "ok".to_string(),
         api_key_configured: Some(api_key_configured),
@@ -45,6 +46,50 @@ fn determine_status(event: &HookEvent) -> PlateStatus {
         "tool_call" => PlateStatus::Running,
         _ => PlateStatus::Running,
     }
+}
+
+fn maybe_summarize(state: Arc<AppState>, event: HookEvent, status: PlateStatus) {
+    let should_summarize = {
+        let db = state.db.lock().unwrap();
+
+        let needs_attention = matches!(
+            status,
+            PlateStatus::AwaitingInput | PlateStatus::AwaitingApproval | PlateStatus::Idle
+        );
+
+        if needs_attention {
+            true
+        } else if event.event_type == "tool_call" {
+            let event_count = db.get_event_count(&event.session_id).unwrap_or(0);
+            event_count > 0 && event_count % 5 == 0
+        } else {
+            db.get_summary(&event.session_id).ok().flatten().is_none()
+        }
+    };
+
+    if !should_summarize {
+        return;
+    }
+
+    let transcript_path = event.transcript_path.clone().or_else(|| {
+        let db = state.db.lock().unwrap();
+        db.get_transcript_path(&event.session_id).ok().flatten()
+    });
+
+    let Some(transcript) = transcript_path else {
+        return;
+    };
+
+    let session_id = event.session_id.clone();
+    let tx = state.tx.clone();
+    tokio::task::spawn_blocking(move || {
+        if let Some(summary) = summarizer::summarize_session(&transcript) {
+            let db = state.db.lock().unwrap();
+            if db.set_summary(&session_id, &summary).is_ok() {
+                let _ = tx.send(WsMessage::PlateUpdate(session_id));
+            }
+        }
+    });
 }
 
 pub async fn post_event(
@@ -83,7 +128,11 @@ pub async fn post_event(
         );
     }
 
-    let _ = state.tx.send(WsMessage::PlateUpdate(event.session_id.clone()));
+    maybe_summarize(state.clone(), event.clone(), status);
+
+    let _ = state
+        .tx
+        .send(WsMessage::PlateUpdate(event.session_id.clone()));
     Json(serde_json::json!({"status": "ok"}))
 }
 
@@ -104,9 +153,12 @@ pub async fn register_plate(
     let now = chrono::Utc::now().to_rfc3339();
     let placeholder_id = {
         let db = state.db.lock().unwrap();
-        db.register_placeholder(&req.project_path, &now).unwrap_or_default()
+        db.register_placeholder(&req.project_path, &now)
+            .unwrap_or_default()
     };
-    let _ = state.tx.send(WsMessage::PlateUpdate(placeholder_id.clone()));
+    let _ = state
+        .tx
+        .send(WsMessage::PlateUpdate(placeholder_id.clone()));
     Json(serde_json::json!({"status": "ok", "placeholder_id": placeholder_id}))
 }
 

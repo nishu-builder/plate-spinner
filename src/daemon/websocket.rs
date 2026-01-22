@@ -1,8 +1,8 @@
+use axum::extract::ws::{Message, WebSocket};
 use axum::{
     extract::{State, WebSocketUpgrade},
     response::Response,
 };
-use axum::extract::ws::{Message, WebSocket};
 use futures_util::{SinkExt, StreamExt};
 use std::sync::Arc;
 
@@ -29,15 +29,13 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                     serde_json::json!({"type": "plate_deleted", "session_id": id})
                 }
             };
-            if sender.send(Message::Text(json.to_string().into())).await.is_err() {
+            if sender.send(Message::Text(json.to_string())).await.is_err() {
                 break;
             }
         }
     });
 
-    let recv_task = tokio::spawn(async move {
-        while let Some(Ok(_)) = receiver.next().await {}
-    });
+    let recv_task = tokio::spawn(async move { while let Some(Ok(_)) = receiver.next().await {} });
 
     tokio::select! {
         _ = send_task => {},

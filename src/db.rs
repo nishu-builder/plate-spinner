@@ -1,5 +1,5 @@
 use anyhow::Result;
-use rusqlite::{Connection, params};
+use rusqlite::{params, Connection};
 use std::path::Path;
 
 const SCHEMA: &str = r#"
@@ -56,20 +56,24 @@ impl Database {
     }
 
     fn migrate(&self) -> Result<()> {
-        let columns: Vec<String> = self.conn
+        let columns: Vec<String> = self
+            .conn
             .prepare("PRAGMA table_info(plates)")?
             .query_map([], |row| row.get(1))?
             .filter_map(|r| r.ok())
             .collect();
 
         if !columns.contains(&"summary".to_string()) {
-            self.conn.execute("ALTER TABLE plates ADD COLUMN summary TEXT", [])?;
+            self.conn
+                .execute("ALTER TABLE plates ADD COLUMN summary TEXT", [])?;
         }
         if !columns.contains(&"transcript_path".to_string()) {
-            self.conn.execute("ALTER TABLE plates ADD COLUMN transcript_path TEXT", [])?;
+            self.conn
+                .execute("ALTER TABLE plates ADD COLUMN transcript_path TEXT", [])?;
         }
         if !columns.contains(&"git_branch".to_string()) {
-            self.conn.execute("ALTER TABLE plates ADD COLUMN git_branch TEXT", [])?;
+            self.conn
+                .execute("ALTER TABLE plates ADD COLUMN git_branch TEXT", [])?;
         }
         Ok(())
     }
@@ -78,6 +82,7 @@ impl Database {
         &self.conn
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub fn upsert_plate(
         &self,
         session_id: &str,
@@ -89,7 +94,8 @@ impl Database {
         tool_name: Option<&str>,
         now: &str,
     ) -> Result<bool> {
-        let existing: Option<String> = self.conn
+        let existing: Option<String> = self
+            .conn
             .query_row(
                 "SELECT session_id FROM plates WHERE session_id = ?",
                 [session_id],
@@ -99,7 +105,8 @@ impl Database {
 
         if existing.is_none() {
             let placeholder_id = format!("pending:{}", project_path);
-            self.conn.execute("DELETE FROM plates WHERE session_id = ?", [&placeholder_id])?;
+            self.conn
+                .execute("DELETE FROM plates WHERE session_id = ?", [&placeholder_id])?;
             self.conn.execute(
                 "INSERT INTO plates (session_id, project_path, transcript_path, git_branch, status, last_event_type, last_tool, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 params![session_id, project_path, transcript_path, git_branch, status, event_type, tool_name, now, now],
@@ -114,7 +121,13 @@ impl Database {
         }
     }
 
-    pub fn insert_event(&self, session_id: &str, event_type: &str, payload: &str, now: &str) -> Result<()> {
+    pub fn insert_event(
+        &self,
+        session_id: &str,
+        event_type: &str,
+        payload: &str,
+        now: &str,
+    ) -> Result<()> {
         self.conn.execute(
             "INSERT INTO events (session_id, event_type, payload, created_at) VALUES (?, ?, ?, ?)",
             params![session_id, event_type, payload, now],
@@ -137,16 +150,23 @@ impl Database {
                       s.transcript_path, t.todos_json
                FROM plates s
                LEFT JOIN todos t ON s.session_id = t.session_id
-               ORDER BY s.updated_at DESC"#
+               ORDER BY s.updated_at DESC"#,
         )?;
 
         let rows = stmt.query_map([], |row| {
             let todos_json: Option<String> = row.get(10)?;
             let todo_progress = todos_json.and_then(|json| {
-                serde_json::from_str::<Vec<serde_json::Value>>(&json).ok().map(|todos| {
-                    let completed = todos.iter().filter(|t| t.get("status").and_then(|s| s.as_str()) == Some("completed")).count();
-                    format!("{}/{}", completed, todos.len())
-                })
+                serde_json::from_str::<Vec<serde_json::Value>>(&json)
+                    .ok()
+                    .map(|todos| {
+                        let completed = todos
+                            .iter()
+                            .filter(|t| {
+                                t.get("status").and_then(|s| s.as_str()) == Some("completed")
+                            })
+                            .count();
+                        format!("{}/{}", completed, todos.len())
+                    })
             });
 
             let status_str: String = row.get(3)?;
@@ -210,7 +230,8 @@ impl Database {
 
     pub fn register_placeholder(&self, project_path: &str, now: &str) -> Result<String> {
         let placeholder_id = format!("pending:{}", project_path);
-        let existing: Option<String> = self.conn
+        let existing: Option<String> = self
+            .conn
             .query_row(
                 "SELECT session_id FROM plates WHERE session_id = ?",
                 [&placeholder_id],
@@ -246,9 +267,12 @@ impl Database {
     }
 
     pub fn delete_plate(&self, session_id: &str) -> Result<()> {
-        self.conn.execute("DELETE FROM todos WHERE session_id = ?", [session_id])?;
-        self.conn.execute("DELETE FROM events WHERE session_id = ?", [session_id])?;
-        self.conn.execute("DELETE FROM plates WHERE session_id = ?", [session_id])?;
+        self.conn
+            .execute("DELETE FROM todos WHERE session_id = ?", [session_id])?;
+        self.conn
+            .execute("DELETE FROM events WHERE session_id = ?", [session_id])?;
+        self.conn
+            .execute("DELETE FROM plates WHERE session_id = ?", [session_id])?;
         Ok(())
     }
 }

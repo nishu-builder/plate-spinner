@@ -1,13 +1,14 @@
 pub mod handlers;
 pub mod state;
+pub mod summarizer;
 pub mod websocket;
 
 use axum::{
     routing::{delete, get, post},
     Router,
 };
-use std::sync::Arc;
 use state::AppState;
+use std::sync::Arc;
 
 pub fn create_router(state: Arc<AppState>) -> Router {
     Router::new()

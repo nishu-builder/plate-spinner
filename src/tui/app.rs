@@ -78,7 +78,7 @@ async fn handle_key(app: &mut App, key: KeyCode) {
         KeyCode::Delete | KeyCode::Backspace => dismiss(app).await,
         KeyCode::Char(c) if c.is_ascii_digit() => {
             let n = c.to_digit(10).unwrap_or(0) as usize;
-            if n >= 1 && n <= 9 {
+            if (1..=9).contains(&n) {
                 app.jump(n - 1);
                 app.mark_seen();
             }

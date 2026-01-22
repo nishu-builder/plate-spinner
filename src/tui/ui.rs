@@ -67,8 +67,7 @@ fn render_plates(frame: &mut Frame, app: &App, area: Rect) {
         }
 
         let is_selected = idx == app.selected_index;
-        let unseen_marker = if app.is_unseen(&plate.session_id) && plate.status.needs_attention()
-        {
+        let unseen_marker = if app.is_unseen(&plate.session_id) && plate.status.needs_attention() {
             "*"
         } else {
             " "
@@ -114,8 +113,9 @@ fn render_plates(frame: &mut Frame, app: &App, area: Rect) {
 }
 
 fn render_footer(frame: &mut Frame, area: Rect) {
-    let footer = Paragraph::new(" q:quit  r:refresh  s:sounds  enter:resume  del:dismiss  1-9:jump ")
-        .style(Style::default().add_modifier(Modifier::DIM));
+    let footer =
+        Paragraph::new(" q:quit  r:refresh  s:sounds  enter:resume  del:dismiss  1-9:jump ")
+            .style(Style::default().add_modifier(Modifier::DIM));
     frame.render_widget(footer, area);
 }
 
@@ -136,7 +136,14 @@ fn render_sound_settings(frame: &mut Frame, app: &App) {
     frame.render_widget(block, modal_area);
 
     let rows = [
-        ("Enabled", if app.config.sounds.enabled { "yes" } else { "no" }),
+        (
+            "Enabled",
+            if app.config.sounds.enabled {
+                "yes"
+            } else {
+                "no"
+            },
+        ),
         ("Awaiting Input", &app.config.sounds.awaiting_input),
         ("Awaiting Approval", &app.config.sounds.awaiting_approval),
         ("Idle", &app.config.sounds.idle),
