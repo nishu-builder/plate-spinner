@@ -7,9 +7,9 @@ Dashboard for managing multiple concurrent Claude Code sessions.
 ```bash
 uv tool install .
 sp install              # Install hooks, prints config to add to ~/.claude/settings.json
-sp run                  # Start tracked session (terminal 1)
-sp run                  # Start another (terminal 2)
-sp                      # Open dashboard (terminal 3)
+sp                      # Open dashboard (terminal 1)
+sp run                  # Start tracked session (terminal 2)
+sp run                  # Start another (terminal 3)
 ```
 
 ## Usage

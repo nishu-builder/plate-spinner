@@ -61,7 +61,10 @@ STATUS_SHORT = {
 }
 
 
-def format_session_line(session: dict, index: int, index_width: int = 1) -> str:
+ATTENTION_STATUSES = {"idle", "awaiting_input", "awaiting_approval", "error"}
+
+
+def format_session_line(session: dict, index: int, index_width: int = 1, unseen: bool = False) -> str:
     status = session["status"]
     folder = session["project_path"].rstrip("/").split("/")[-1]
     branch = session.get("git_branch") or ""
@@ -82,7 +85,8 @@ def format_session_line(session: dict, index: int, index_width: int = 1) -> str:
     colored_icon = f"[{color}]{icon}[/]" if color else icon
     colored_status = f"[{color}]{status_short:<7}[/]" if color else f"{status_short:<7}"
 
-    line = f"[{index:>{index_width}}] {colored_icon} {label:<20} {colored_status}"
+    unseen_marker = "*" if unseen else " "
+    line = f"[{index:>{index_width}}]{unseen_marker}{colored_icon} {label:<20} {colored_status}"
     if todo:
         line += f" [{todo}]"
     if summary:
@@ -91,17 +95,19 @@ def format_session_line(session: dict, index: int, index_width: int = 1) -> str:
 
 
 class SessionWidget(Static):
-    def __init__(self, session: dict, index: int, index_width: int = 1, widget_id: str | None = None) -> None:
+    def __init__(self, session: dict, index: int, index_width: int = 1, unseen: bool = False, widget_id: str | None = None) -> None:
         self.session = session
         self.index = index
         self.index_width = index_width
-        super().__init__(format_session_line(session, index, index_width), id=widget_id)
+        self.unseen = unseen
+        super().__init__(format_session_line(session, index, index_width, unseen), id=widget_id)
 
-    def update_session(self, session: dict, index: int, index_width: int = 1) -> None:
+    def update_session(self, session: dict, index: int, index_width: int = 1, unseen: bool = False) -> None:
         self.session = session
         self.index = index
         self.index_width = index_width
-        self.update(format_session_line(session, index, index_width))
+        self.unseen = unseen
+        self.update(format_session_line(session, index, index_width, unseen))
 
 
 class GroupTitle(Static):
@@ -307,6 +313,7 @@ class PlateSpinnerApp(App):
         self.sessions: list[dict] = []
         self.display_order: list[dict] = []
         self.previous_statuses: dict[str, str] = {}
+        self.seen_sessions: set[str] = set()
         self.config = load_config()
         self._sync_timer: asyncio.TimerHandle | None = None
         self._last_attention_count: int = -1
@@ -405,6 +412,11 @@ class PlateSpinnerApp(App):
                     sound_name = getattr(self.config.sounds, current_status, "none")
                     asyncio.create_task(play_sound(sound_name))
 
+            prev_needs_attention = previous_status in ATTENTION_STATUSES
+            curr_needs_attention = current_status in ATTENTION_STATUSES
+            if curr_needs_attention and not prev_needs_attention:
+                self.seen_sessions.discard(session_id)
+
             self.previous_statuses[session_id] = current_status
 
         await self.render_sessions()
@@ -446,13 +458,16 @@ class PlateSpinnerApp(App):
 
             index_width = len(str(len(new_display_order)))
 
+            def is_unseen(s: dict) -> bool:
+                return s["status"] in ATTENTION_STATUSES and s["session_id"] not in self.seen_sessions
+
             same_grouping = new_open_ids == old_open_ids and new_closed_ids == old_closed_ids
             if same_grouping and not main.query("Static#empty-message"):
                 for i, session in enumerate(new_display_order):
                     widget_id = f"session-{session['session_id']}"
                     try:
                         widget = main.query_one(f"#{widget_id}", SessionWidget)
-                        widget.update_session(session, i + 1, index_width)
+                        widget.update_session(session, i + 1, index_width, is_unseen(session))
                     except Exception:
                         pass
                 self.display_order = new_display_order
@@ -469,12 +484,12 @@ class PlateSpinnerApp(App):
             if open_sorted:
                 await main.mount(GroupTitle("\nOPEN", classes="group-title", id="group-open"))
                 for session in open_sorted:
-                    await main.mount(SessionWidget(session, idx, index_width, widget_id=f"session-{session['session_id']}"))
+                    await main.mount(SessionWidget(session, idx, index_width, is_unseen(session), widget_id=f"session-{session['session_id']}"))
                     idx += 1
             if closed_sessions:
                 await main.mount(GroupTitle("\nCLOSED", classes="group-title", id="group-closed"))
                 for session in closed_sessions:
-                    await main.mount(SessionWidget(session, idx, index_width, widget_id=f"session-{session['session_id']}"))
+                    await main.mount(SessionWidget(session, idx, index_width, is_unseen(session), widget_id=f"session-{session['session_id']}"))
                     idx += 1
 
             self._update_selection()
@@ -483,10 +498,14 @@ class PlateSpinnerApp(App):
         main = self.query_one("#main")
         for i, session in enumerate(self.display_order):
             widget_id = f"session-{session['session_id']}"
+            session_id = session["session_id"]
             try:
                 widget = main.query_one(f"#{widget_id}", SessionWidget)
                 if i == self.selected_index:
                     widget.add_class("selected")
+                    if session_id not in self.seen_sessions:
+                        self.seen_sessions.add(session_id)
+                        widget.update_session(session, widget.index, widget.index_width, unseen=False)
                 else:
                     widget.remove_class("selected")
             except Exception:
