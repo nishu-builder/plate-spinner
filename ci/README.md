@@ -12,8 +12,8 @@ This project uses [cargo-dist](https://opensource.axo.dev/cargo-dist/) for autom
 The script updates `Cargo.toml`, commits, tags, and pushes.
 
 When a tag is pushed, a github action will:
-1. Build binaries for all platforms (macOS, Linux, Windows)
-2. Create installer scripts (shell for Unix, PowerShell for Windows)
+1. Build binaries for macOS and Linux
+2. Create a shell installer script
 3. Publish a GitHub Release with all artifacts
 
 ## Installation Commands
@@ -21,11 +21,7 @@ When a tag is pushed, a github action will:
 After a release, users can install with:
 
 ```bash
-# macOS/Linux
 curl --proto '=https' --tlsv1.2 -LsSf https://github.com/nishu-builder/plate-spinner/releases/latest/download/plate-spinner-installer.sh | sh
-
-# Windows PowerShell
-irm https://github.com/nishu-builder/plate-spinner/releases/latest/download/plate-spinner-installer.ps1 | iex
 ```
 
 Or download binaries directly from the [releases page](https://github.com/nishu-builder/plate-spinner/releases).
