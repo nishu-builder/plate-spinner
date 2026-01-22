@@ -5,8 +5,8 @@ Dashboard for managing multiple concurrent Claude Code sessions.
 ## Quick Start
 
 ```bash
-uv tool install .
-sp install              # Install hooks, prints config to add to ~/.claude/settings.json
+cargo install --path .
+sp install              # Prints hook config to add to ~/.claude/settings.json
 sp                      # Open dashboard (terminal 1)
 sp run                  # Start tracked session (terminal 2)
 sp run                  # Start another (terminal 3)
@@ -41,14 +41,12 @@ Keybindings:
 
 AI summaries appear when sessions reach a waiting state (requires `ANTHROPIC_API_KEY`).
 
-The dashboard shows warnings if hooks are outdated or `ANTHROPIC_API_KEY` is not set.
-
 ## Commands
 
 ```
 sp              Dashboard (auto-starts daemon)
 sp run [args]   Launch Claude with tracking
-sp install      Install/update hooks, print settings config
+sp install      Print settings.json hook config
 sp kill         Stop daemon
 sp sessions     List sessions as JSON
 sp daemon       Run daemon in foreground
@@ -61,17 +59,24 @@ sp config       Manage configuration
 ## Architecture
 
 ```
-Claude Code (sp run)
-    | hooks on tool calls
+Claude Code
+    | hooks call `sp hook <type>`
     v
-~/.plate-spinner/hooks/*.sh
+sp hook session-start/pre-tool-use/post-tool-use/stop
     | POST localhost:7890
     v
-Daemon (SQLite + WebSocket) --> TUI
+sp daemon (SQLite + WebSocket) --> sp (TUI)
+```
+
+## Building
+
+```bash
+cargo build --release
+# Binary at target/release/sp
 ```
 
 ## Requirements
 
-- Python 3.11+
+- Rust 1.70+
 - Claude Code
 - `ANTHROPIC_API_KEY` (optional, enables summaries)
