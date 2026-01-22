@@ -31,17 +31,21 @@ pub async fn status() -> Json<StatusResponse> {
 }
 
 fn determine_status(event: &HookEvent) -> SessionStatus {
-    if event.event_type == "stop" {
-        return if event.error.is_some() {
-            SessionStatus::Error
-        } else {
-            SessionStatus::Idle
-        };
+    match event.event_type.as_str() {
+        "stop" => {
+            if event.error.is_some() {
+                SessionStatus::Error
+            } else {
+                SessionStatus::Idle
+            }
+        }
+        "session_start" => SessionStatus::Running,
+        // PreToolUse: tool is ABOUT to run - check if it needs user input
+        "tool_start" => SessionStatus::from_tool(event.tool_name.as_deref().unwrap_or("")),
+        // PostToolUse: tool COMPLETED - Claude is processing result
+        "tool_call" => SessionStatus::Running,
+        _ => SessionStatus::Running,
     }
-    if event.event_type == "session_start" || event.event_type == "tool_start" {
-        return SessionStatus::Running;
-    }
-    SessionStatus::from_tool(event.tool_name.as_deref().unwrap_or(""))
 }
 
 pub async fn post_event(

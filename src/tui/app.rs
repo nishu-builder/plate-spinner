@@ -63,8 +63,14 @@ async fn handle_key(app: &mut App, key: KeyCode) {
             app.show_sound_settings = true;
             app.sound_settings_row = 0;
         }
-        KeyCode::Up => app.move_up(),
-        KeyCode::Down => app.move_down(),
+        KeyCode::Up => {
+            app.move_up();
+            app.mark_seen();
+        }
+        KeyCode::Down => {
+            app.move_down();
+            app.mark_seen();
+        }
         KeyCode::Enter => {
             app.mark_seen();
             app.select();
@@ -74,6 +80,7 @@ async fn handle_key(app: &mut App, key: KeyCode) {
             let n = c.to_digit(10).unwrap_or(0) as usize;
             if n >= 1 && n <= 9 {
                 app.jump(n - 1);
+                app.mark_seen();
             }
         }
         _ => {}
