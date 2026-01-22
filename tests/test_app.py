@@ -87,7 +87,7 @@ def test_todowrite_stores_todos():
         db.close()
 
 
-def test_stop_event_sets_idle():
+def test_stop_event_sets_closed():
     with tempfile.TemporaryDirectory() as tmpdir:
         db = Database(Path(tmpdir) / "test.db")
         app = create_app(db)
@@ -107,7 +107,7 @@ def test_stop_event_sets_idle():
         })
 
         sessions = client.get("/sessions").json()
-        assert sessions[0]["status"] == "idle"
+        assert sessions[0]["status"] == "closed"
         assert sessions[0]["last_tool"] == "Read"
 
         db.close()

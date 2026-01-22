@@ -86,8 +86,8 @@ def test_post_tool_use_updates_status(isolated_daemon):
     assert sessions[0]["status"] == "awaiting_input"
 
 
-def test_stop_sets_idle(isolated_daemon):
-    """Stop event should set status to idle."""
+def test_stop_sets_closed(isolated_daemon):
+    """Stop event should set status to closed."""
     httpx.post(f"{isolated_daemon}/events", json={
         "session_id": "test-001",
         "project_path": "/tmp/project",
@@ -102,7 +102,7 @@ def test_stop_sets_idle(isolated_daemon):
     })
 
     sessions = httpx.get(f"{isolated_daemon}/sessions").json()
-    assert sessions[0]["status"] == "idle"
+    assert sessions[0]["status"] == "closed"
 
 
 def test_hook_script_transformation():

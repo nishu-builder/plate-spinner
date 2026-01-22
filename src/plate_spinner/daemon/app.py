@@ -13,7 +13,7 @@ from .summarizer import get_api_key, summarize_session
 
 def _determine_status(event: HookEvent) -> SessionStatus:
     if event.event_type == "stop":
-        return SessionStatus.ERROR if event.error else SessionStatus.IDLE
+        return SessionStatus.ERROR if event.error else SessionStatus.CLOSED
     if event.event_type in ("session_start", "tool_start"):
         return SessionStatus.RUNNING
     return SessionStatus.from_tool(event.tool_name or "")
