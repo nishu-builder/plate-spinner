@@ -42,6 +42,11 @@ fn render_header(frame: &mut Frame, app: &App, area: Rect) {
 
 fn render_plates(frame: &mut Frame, app: &App, area: Rect) {
     let plates = app.display_order();
+    let num_width = if plates.is_empty() {
+        1
+    } else {
+        (plates.len().ilog10() + 1) as usize
+    };
     let mut items: Vec<ListItem> = Vec::new();
     let mut open_count = 0;
     let mut closed_started = false;
@@ -83,14 +88,15 @@ fn render_plates(frame: &mut Frame, app: &App, area: Rect) {
         let summary = plate.summary.as_deref().unwrap_or("");
 
         let line_text = format!(
-            "[{}]{} {} {:20} {:8} {:12} {}",
+            "[{:>width$}]{} {} {:20} {:8} {:12} {}",
             idx + 1,
             unseen_marker,
             icon,
             label,
             status_short,
             todo,
-            summary
+            summary,
+            width = num_width,
         );
 
         let style = if is_selected {
