@@ -1,0 +1,28 @@
+use anyhow::Result;
+
+use super::{check_daemon_health, post_event, read_stdin_json};
+
+pub async fn stop() -> Result<()> {
+    let data = read_stdin_json()?;
+
+    let client = reqwest::Client::new();
+    if !check_daemon_health(&client).await {
+        return Ok(());
+    }
+
+    let error = data
+        .get("stop_hook_active")
+        .and_then(|v| v.as_bool())
+        .filter(|&b| !b)
+        .map(|_| "stopped");
+
+    let payload = serde_json::json!({
+        "session_id": data["session_id"],
+        "project_path": data["cwd"],
+        "event_type": "stop",
+        "error": error,
+    });
+
+    post_event(&client, payload).await;
+    Ok(())
+}
