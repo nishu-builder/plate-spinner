@@ -1,4 +1,6 @@
 use serde::{Deserialize, Serialize};
+use std::io::Write;
+use std::os::unix::fs::OpenOptionsExt;
 use std::path::PathBuf;
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -104,6 +106,53 @@ pub fn save_config(config: &Config) -> anyhow::Result<()> {
         std::fs::create_dir_all(parent)?;
     }
     std::fs::write(&path, toml::to_string_pretty(config)?)?;
+    Ok(())
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AuthConfig {
+    pub anthropic_api_key: String,
+}
+
+pub fn get_auth_config_path() -> PathBuf {
+    dirs::home_dir()
+        .unwrap_or_default()
+        .join(".config")
+        .join("plate-spinner")
+        .join("auth.toml")
+}
+
+pub fn load_auth_config() -> Option<AuthConfig> {
+    let path = get_auth_config_path();
+    if !path.exists() {
+        return None;
+    }
+    std::fs::read_to_string(&path)
+        .ok()
+        .and_then(|s| toml::from_str(&s).ok())
+}
+
+pub fn save_auth_config(config: &AuthConfig) -> anyhow::Result<()> {
+    let path = get_auth_config_path();
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent)?;
+    }
+    let content = toml::to_string_pretty(config)?;
+    std::fs::OpenOptions::new()
+        .write(true)
+        .create(true)
+        .truncate(true)
+        .mode(0o600)
+        .open(&path)?
+        .write_all(content.as_bytes())?;
+    Ok(())
+}
+
+pub fn delete_auth_config() -> anyhow::Result<()> {
+    let path = get_auth_config_path();
+    if path.exists() {
+        std::fs::remove_file(&path)?;
+    }
     Ok(())
 }
 

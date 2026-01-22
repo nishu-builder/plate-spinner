@@ -18,6 +18,7 @@ cargo install --git https://github.com/nishu-builder/plate-spinner
 
 ```bash
 sp install              # Prints hook config to add to ~/.claude/settings.json
+sp auth set             # Configure API key (optional, enables summaries)
 sp                      # Open dashboard (terminal 1)
 sp run                  # Start tracked plate (terminal 2)
 sp run                  # Start another (terminal 3)
@@ -50,7 +51,7 @@ Keybindings:
 | `X` | error | Stop event with error |
 | `x` | closed | Plate wrapper exited |
 
-AI summaries appear when plates reach a waiting state (requires `ANTHROPIC_API_KEY`).
+AI summaries appear when plates reach a waiting state (requires API key, see Authentication below).
 
 ## Commands
 
@@ -61,6 +62,10 @@ sp install      Print settings.json hook config
 sp kill         Stop daemon
 sp plates       List plates as JSON
 sp daemon       Run daemon in foreground
+sp auth         Show authentication status
+  set           Set API key (prompted)
+  unset         Remove stored API key
+  path          Print auth config path
 sp config       Manage configuration
   path          Print config file path
   export        Export config to stdout
@@ -82,7 +87,18 @@ sp daemon (SQLite + WebSocket) --> sp (TUI)
 ## Requirements
 
 - Claude Code
-- `ANTHROPIC_API_KEY` (optional, enables summaries)
+
+## Authentication
+
+AI summaries require an Anthropic API key. Configure it with:
+
+```bash
+sp auth set
+```
+
+The key is stored in `~/.config/plate-spinner/auth.toml` with restricted permissions (0600).
+
+Alternatively, set the `ANTHROPIC_API_KEY` environment variable (takes precedence over the stored key).
 
 ## Development
 

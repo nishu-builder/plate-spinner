@@ -35,6 +35,11 @@ enum Commands {
         #[command(subcommand)]
         command: Option<ConfigCommands>,
     },
+    #[command(about = "Manage API key authentication")]
+    Auth {
+        #[command(subcommand)]
+        command: Option<AuthCommands>,
+    },
     #[command(about = "Hook handlers (called by Claude Code)")]
     Hook {
         #[command(subcommand)]
@@ -50,6 +55,16 @@ enum ConfigCommands {
     Export,
     #[command(about = "Import config from file")]
     Import { file: String },
+}
+
+#[derive(Subcommand)]
+enum AuthCommands {
+    #[command(about = "Set API key")]
+    Set,
+    #[command(about = "Remove stored API key")]
+    Unset,
+    #[command(about = "Print auth config path")]
+    Path,
 }
 
 #[derive(Subcommand)]
@@ -112,6 +127,18 @@ fn main() {
                     plate_spinner::cli::config::config_import(&file)
                 }
                 None => plate_spinner::cli::config::config_path(),
+            };
+            if let Err(e) = result {
+                eprintln!("Error: {}", e);
+                std::process::exit(1);
+            }
+        }
+        Some(Commands::Auth { command }) => {
+            let result = match command {
+                Some(AuthCommands::Set) => plate_spinner::cli::auth::auth_set(),
+                Some(AuthCommands::Unset) => plate_spinner::cli::auth::auth_unset(),
+                Some(AuthCommands::Path) => plate_spinner::cli::auth::auth_path(),
+                None => plate_spinner::cli::auth::auth_status(),
             };
             if let Err(e) = result {
                 eprintln!("Error: {}", e);

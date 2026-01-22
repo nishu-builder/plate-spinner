@@ -8,16 +8,10 @@ pub fn get_api_key() -> Option<String> {
         return Some(key);
     }
 
-    let config_path = dirs::home_dir()?.join(".plate-spinner").join("config");
-    if config_path.exists() {
-        if let Ok(content) = std::fs::read_to_string(&config_path) {
-            for line in content.lines() {
-                if let Some(key) = line.strip_prefix("ANTHROPIC_API_KEY=") {
-                    return Some(key.trim().to_string());
-                }
-            }
-        }
+    if let Some(auth) = crate::config::load_auth_config() {
+        return Some(auth.anthropic_api_key);
     }
+
     None
 }
 
