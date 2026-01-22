@@ -45,6 +45,8 @@ enum Commands {
         #[command(subcommand)]
         hook_type: HookCommands,
     },
+    #[command(about = "Run TUI directly (internal)", hide = true)]
+    Tui,
 }
 
 #[derive(Subcommand)]
@@ -160,7 +162,7 @@ fn main() {
                 }
             });
         }
-        None => {
+        Some(Commands::Tui) => {
             ensure_daemon_running();
             let rt = tokio::runtime::Runtime::new().expect("Failed to create runtime");
             let resume = rt.block_on(async { plate_spinner::tui::run().await });
@@ -183,6 +185,54 @@ fn main() {
                     eprintln!("TUI error: {}", e);
                     std::process::exit(1);
                 }
+            }
+        }
+        None => {
+            use plate_spinner::cli::tmux;
+
+            if let Err(e) = tmux::check_tmux_available() {
+                eprintln!("Error: {}", e);
+                std::process::exit(1);
+            }
+            if let Err(e) = tmux::check_tmux_version() {
+                eprintln!("Error: {}", e);
+                std::process::exit(1);
+            }
+
+            let in_tmux = tmux::is_inside_tmux();
+            let session = tmux::get_session_name();
+
+            if !in_tmux {
+                if let Err(e) = tmux::ensure_session_exists(&session) {
+                    eprintln!("Error: {}", e);
+                    std::process::exit(1);
+                }
+            }
+
+            let exe = std::env::current_exe().unwrap_or_else(|_| "sp".into());
+            let exe_str = exe.to_string_lossy();
+
+            let mut cmd = Command::new("tmux");
+            cmd.args(["new-window", "-n", "dashboard"]);
+
+            if !in_tmux {
+                cmd.args(["-t", &format!("{}:", &session)]);
+            }
+
+            cmd.args(["--", &*exe_str, "tui"]);
+
+            let status = cmd.status().expect("Failed to run tmux");
+            if !status.success() {
+                eprintln!("Failed to create tmux window");
+                std::process::exit(1);
+            }
+
+            if !in_tmux {
+                let err = Command::new("tmux")
+                    .args(["attach", "-t", &format!("{}:dashboard", session)])
+                    .exec();
+                eprintln!("Failed to attach to tmux: {}", err);
+                std::process::exit(1);
             }
         }
     }
