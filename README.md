@@ -34,12 +34,14 @@ Press `1-9` to resume a session. Press `x` then `1-9` to dismiss one.
 
 AI summaries appear when sessions reach a waiting state (requires `ANTHROPIC_API_KEY`).
 
+The dashboard shows warnings if hooks are outdated or `ANTHROPIC_API_KEY` is not set.
+
 ## Commands
 
 ```
 sp              Dashboard (auto-starts daemon)
 sp run [args]   Launch Claude with tracking
-sp install      Install hooks, print settings config
+sp install      Install/update hooks, print settings config
 sp kill         Stop daemon
 sp sessions     List sessions as JSON
 ```
