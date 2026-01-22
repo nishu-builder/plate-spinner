@@ -2,6 +2,7 @@ use anyhow::Result;
 use std::os::unix::process::CommandExt;
 use std::process::Command;
 
+use crate::ensure_daemon_running;
 use crate::hook::DAEMON_URL;
 
 static mut CHILD_PID: libc::pid_t = 0;
@@ -25,29 +26,6 @@ fn notify_stopped(project_path: &str) {
         .json(&serde_json::json!({"project_path": project_path}))
         .timeout(std::time::Duration::from_secs(2))
         .send();
-}
-
-fn ensure_daemon_running() {
-    let client = reqwest::blocking::Client::new();
-    let healthy = client
-        .get(format!("{}/health", DAEMON_URL))
-        .timeout(std::time::Duration::from_secs(1))
-        .send()
-        .is_ok();
-
-    if healthy {
-        return;
-    }
-
-    let exe = std::env::current_exe().unwrap_or_else(|_| "sp".into());
-    Command::new(&exe)
-        .arg("daemon")
-        .stdout(std::process::Stdio::null())
-        .stderr(std::process::Stdio::null())
-        .spawn()
-        .ok();
-
-    std::thread::sleep(std::time::Duration::from_secs(1));
 }
 
 pub fn run(claude_args: Vec<String>) -> Result<()> {
