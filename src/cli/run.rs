@@ -51,9 +51,9 @@ pub fn run(claude_args: Vec<String>) -> Result<()> {
     } else if pid > 0 {
         unsafe {
             CHILD_PID = pid;
-            libc::signal(libc::SIGHUP, signal_handler as libc::sighandler_t);
-            libc::signal(libc::SIGTERM, signal_handler as libc::sighandler_t);
-            libc::signal(libc::SIGINT, signal_handler as libc::sighandler_t);
+            libc::signal(libc::SIGHUP, signal_handler as *const () as libc::sighandler_t);
+            libc::signal(libc::SIGTERM, signal_handler as *const () as libc::sighandler_t);
+            libc::signal(libc::SIGINT, signal_handler as *const () as libc::sighandler_t);
 
             let mut status: libc::c_int = 0;
             libc::waitpid(pid, &mut status, 0);
