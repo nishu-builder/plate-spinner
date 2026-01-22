@@ -1,7 +1,0 @@
-services:
-  test:
-    build:
-      context: ../..
-      dockerfile: tests/docker/Dockerfile
-    environment:
-      - PYTHONUNBUFFERED=1
