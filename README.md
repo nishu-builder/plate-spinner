@@ -83,3 +83,12 @@ sp daemon (SQLite + WebSocket) --> sp (TUI)
 
 - Claude Code
 - `ANTHROPIC_API_KEY` (optional, enables summaries)
+
+## Development
+
+```bash
+cargo build
+sp              # daemon auto-restarts if binary changed
+```
+
+The daemon includes a build timestamp, so any `sp` command after rebuilding will detect the version mismatch and restart the daemon automatically. TUI changes require quitting (`q`) and restarting `sp`.

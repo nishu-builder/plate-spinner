@@ -13,6 +13,7 @@ use std::sync::Arc;
 pub fn create_router(state: Arc<AppState>) -> Router {
     Router::new()
         .route("/health", get(handlers::health))
+        .route("/shutdown", post(handlers::shutdown))
         .route("/status", get(handlers::status))
         .route("/events", post(handlers::post_event))
         .route("/plates", get(handlers::get_plates))

@@ -19,6 +19,17 @@ pub struct StatusResponse {
 }
 
 pub async fn health() -> Json<serde_json::Value> {
+    Json(serde_json::json!({
+        "status": "ok",
+        "version": crate::build_version()
+    }))
+}
+
+pub async fn shutdown() -> Json<serde_json::Value> {
+    tokio::spawn(async {
+        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+        std::process::exit(0);
+    });
     Json(serde_json::json!({"status": "ok"}))
 }
 
