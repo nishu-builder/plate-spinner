@@ -13,6 +13,7 @@ pub async fn session_start() -> Result<()> {
 
     let cwd = data["cwd"].as_str().unwrap_or(".");
     let git_branch = get_git_branch(cwd);
+    let tmux_target = std::env::var("PLATE_SPINNER_TMUX_TARGET").ok();
 
     let payload = serde_json::json!({
         "session_id": data["session_id"],
@@ -20,6 +21,7 @@ pub async fn session_start() -> Result<()> {
         "event_type": "session_start",
         "transcript_path": data["transcript_path"],
         "git_branch": git_branch,
+        "tmux_target": tmux_target,
     });
 
     post_event(&client, payload).await;
