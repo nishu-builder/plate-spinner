@@ -72,6 +72,13 @@ def _maybe_summarize(db: Database, event: HookEvent, status: SessionStatus) -> N
         should_summarize = event_count > 0 and event_count % 5 == 0
 
     if not should_summarize:
+        row = db.execute(
+            "SELECT summary FROM sessions WHERE session_id = ?",
+            (event.session_id,)
+        ).fetchone()
+        should_summarize = row and row[0] is None
+
+    if not should_summarize:
         return
 
     try:
