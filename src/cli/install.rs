@@ -9,6 +9,12 @@ pub fn install() -> Result<()> {
                     "command": "[ \"$PLATE_SPINNER\" = \"1\" ] && sp hook session-start || true"
                 }]
             }],
+            "UserPromptSubmit": [{
+                "hooks": [{
+                    "type": "command",
+                    "command": "[ \"$PLATE_SPINNER\" = \"1\" ] && sp hook prompt-submit || true"
+                }]
+            }],
             "PreToolUse": [{
                 "matcher": "*",
                 "hooks": [{

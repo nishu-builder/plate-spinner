@@ -1,7 +1,9 @@
+pub mod prompt_submit;
 pub mod session_start;
 pub mod stop;
 pub mod tool_use;
 
+pub use prompt_submit::prompt_submit;
 pub use session_start::session_start;
 pub use stop::stop;
 pub use tool_use::{post_tool_use, pre_tool_use};

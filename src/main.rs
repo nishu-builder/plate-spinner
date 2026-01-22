@@ -56,6 +56,8 @@ enum ConfigCommands {
 enum HookCommands {
     #[command(name = "session-start")]
     SessionStart,
+    #[command(name = "prompt-submit")]
+    PromptSubmit,
     #[command(name = "pre-tool-use")]
     PreToolUse,
     #[command(name = "post-tool-use")]
@@ -121,6 +123,7 @@ fn main() {
             rt.block_on(async {
                 let result = match hook_type {
                     HookCommands::SessionStart => plate_spinner::hook::session_start().await,
+                    HookCommands::PromptSubmit => plate_spinner::hook::prompt_submit().await,
                     HookCommands::PreToolUse => plate_spinner::hook::pre_tool_use().await,
                     HookCommands::PostToolUse => plate_spinner::hook::post_tool_use().await,
                     HookCommands::Stop => plate_spinner::hook::stop().await,

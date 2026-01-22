@@ -39,6 +39,7 @@ fn determine_status(event: &HookEvent) -> PlateStatus {
                 PlateStatus::Idle
             }
         }
+        "prompt_submit" => PlateStatus::Running,
         "session_start" => PlateStatus::Running,
         "tool_start" => PlateStatus::from_tool(event.tool_name.as_deref().unwrap_or("")),
         "tool_call" => PlateStatus::Running,
