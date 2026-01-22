@@ -7,7 +7,7 @@ use ratatui::{
 };
 
 use crate::config::AVAILABLE_SOUNDS;
-use crate::models::SessionStatus;
+use crate::models::PlateStatus;
 
 use super::state::App;
 
@@ -20,7 +20,7 @@ pub fn render(frame: &mut Frame, app: &App) {
     .split(frame.area());
 
     render_header(frame, app, chunks[0]);
-    render_sessions(frame, app, chunks[1]);
+    render_plates(frame, app, chunks[1]);
     render_footer(frame, chunks[2]);
 
     if app.show_sound_settings {
@@ -40,14 +40,14 @@ fn render_header(frame: &mut Frame, app: &App, area: Rect) {
     frame.render_widget(header, area);
 }
 
-fn render_sessions(frame: &mut Frame, app: &App, area: Rect) {
-    let sessions = app.display_order();
+fn render_plates(frame: &mut Frame, app: &App, area: Rect) {
+    let plates = app.display_order();
     let mut items: Vec<ListItem> = Vec::new();
     let mut open_count = 0;
     let mut closed_started = false;
 
-    for (idx, session) in sessions.iter().enumerate() {
-        if session.status == SessionStatus::Closed && !closed_started {
+    for (idx, plate) in plates.iter().enumerate() {
+        if plate.status == PlateStatus::Closed && !closed_started {
             if open_count > 0 {
                 items.push(ListItem::new(Line::from("")));
             }
@@ -56,7 +56,7 @@ fn render_sessions(frame: &mut Frame, app: &App, area: Rect) {
                 Style::default().add_modifier(Modifier::DIM),
             ))));
             closed_started = true;
-        } else if session.status != SessionStatus::Closed && !closed_started {
+        } else if plate.status != PlateStatus::Closed && !closed_started {
             if open_count == 0 {
                 items.push(ListItem::new(Line::from(Span::styled(
                     "OPEN",
@@ -67,21 +67,21 @@ fn render_sessions(frame: &mut Frame, app: &App, area: Rect) {
         }
 
         let is_selected = idx == app.selected_index;
-        let unseen_marker = if app.is_unseen(&session.session_id) && session.status.needs_attention()
+        let unseen_marker = if app.is_unseen(&plate.session_id) && plate.status.needs_attention()
         {
             "*"
         } else {
             " "
         };
 
-        let status_color = status_color(session.status);
-        let icon = session.status.icon();
+        let status_color = status_color(plate.status);
+        let icon = plate.status.icon();
 
-        let label = format_label(session.project_name(), session.git_branch.as_deref());
+        let label = format_label(plate.project_name(), plate.git_branch.as_deref());
 
-        let status_short = session.status.short_name();
-        let todo = session.todo_progress.as_deref().unwrap_or("");
-        let summary = session.summary.as_deref().unwrap_or("");
+        let status_short = plate.status.short_name();
+        let todo = plate.todo_progress.as_deref().unwrap_or("");
+        let summary = plate.summary.as_deref().unwrap_or("");
 
         let line_text = format!(
             "[{}]{} {} {:20} {:8} {:12} {}",
@@ -106,7 +106,7 @@ fn render_sessions(frame: &mut Frame, app: &App, area: Rect) {
     }
 
     if items.is_empty() {
-        items.push(ListItem::new(Line::from("No sessions")));
+        items.push(ListItem::new(Line::from("No plates")));
     }
 
     let list = List::new(items);
@@ -167,15 +167,15 @@ fn render_sound_settings(frame: &mut Frame, app: &App) {
     frame.render_widget(para, inner);
 }
 
-fn status_color(status: SessionStatus) -> Color {
+fn status_color(status: PlateStatus) -> Color {
     match status {
-        SessionStatus::Starting => Color::DarkGray,
-        SessionStatus::Running => Color::Green,
-        SessionStatus::Idle => Color::Cyan,
-        SessionStatus::AwaitingInput => Color::Yellow,
-        SessionStatus::AwaitingApproval => Color::Magenta,
-        SessionStatus::Error => Color::Red,
-        SessionStatus::Closed => Color::DarkGray,
+        PlateStatus::Starting => Color::DarkGray,
+        PlateStatus::Running => Color::Green,
+        PlateStatus::Idle => Color::Cyan,
+        PlateStatus::AwaitingInput => Color::Yellow,
+        PlateStatus::AwaitingApproval => Color::Magenta,
+        PlateStatus::Error => Color::Red,
+        PlateStatus::Closed => Color::DarkGray,
     }
 }
 

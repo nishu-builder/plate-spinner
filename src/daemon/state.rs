@@ -4,8 +4,8 @@ use tokio::sync::broadcast;
 
 #[derive(Debug, Clone)]
 pub enum WsMessage {
-    SessionUpdate(String),
-    SessionDeleted(String),
+    PlateUpdate(String),
+    PlateDeleted(String),
 }
 
 pub struct AppState {

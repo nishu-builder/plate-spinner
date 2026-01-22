@@ -1,16 +1,16 @@
 use std::collections::{HashMap, HashSet};
 
 use crate::config::Config;
-use crate::models::{Session, SessionStatus};
+use crate::models::{Plate, PlateStatus};
 
 pub struct App {
-    pub sessions: Vec<Session>,
+    pub plates: Vec<Plate>,
     pub selected_index: usize,
-    pub seen_sessions: HashSet<String>,
-    pub previous_statuses: HashMap<String, SessionStatus>,
+    pub seen_plates: HashSet<String>,
+    pub previous_statuses: HashMap<String, PlateStatus>,
     pub config: Config,
     pub should_quit: bool,
-    pub resume_session: Option<(String, String)>,
+    pub resume_plate: Option<(String, String)>,
     pub show_sound_settings: bool,
     pub sound_settings_row: usize,
 }
@@ -18,28 +18,28 @@ pub struct App {
 impl App {
     pub fn new(config: Config) -> Self {
         Self {
-            sessions: Vec::new(),
+            plates: Vec::new(),
             selected_index: 0,
-            seen_sessions: HashSet::new(),
+            seen_plates: HashSet::new(),
             previous_statuses: HashMap::new(),
             config,
             should_quit: false,
-            resume_session: None,
+            resume_plate: None,
             show_sound_settings: false,
             sound_settings_row: 0,
         }
     }
 
-    pub fn display_order(&self) -> Vec<&Session> {
+    pub fn display_order(&self) -> Vec<&Plate> {
         let mut open: Vec<_> = self
-            .sessions
+            .plates
             .iter()
-            .filter(|s| s.status != SessionStatus::Closed)
+            .filter(|s| s.status != PlateStatus::Closed)
             .collect();
         let mut closed: Vec<_> = self
-            .sessions
+            .plates
             .iter()
-            .filter(|s| s.status == SessionStatus::Closed)
+            .filter(|s| s.status == PlateStatus::Closed)
             .collect();
 
         open.sort_by(|a, b| {
@@ -66,9 +66,9 @@ impl App {
     }
 
     pub fn select(&mut self) {
-        let sessions = self.display_order();
-        if let Some(session) = sessions.get(self.selected_index) {
-            self.resume_session = Some((session.session_id.clone(), session.project_path.clone()));
+        let plates = self.display_order();
+        if let Some(plate) = plates.get(self.selected_index) {
+            self.resume_plate = Some((plate.session_id.clone(), plate.project_path.clone()));
             self.should_quit = true;
         }
     }
@@ -81,18 +81,18 @@ impl App {
     }
 
     pub fn mark_seen(&mut self) {
-        let sessions = self.display_order();
-        if let Some(session) = sessions.get(self.selected_index) {
-            self.seen_sessions.insert(session.session_id.clone());
+        let plates = self.display_order();
+        if let Some(plate) = plates.get(self.selected_index) {
+            self.seen_plates.insert(plate.session_id.clone());
         }
     }
 
     pub fn is_unseen(&self, session_id: &str) -> bool {
-        !self.seen_sessions.contains(session_id)
+        !self.seen_plates.contains(session_id)
     }
 
     pub fn attention_count(&self) -> usize {
-        self.sessions
+        self.plates
             .iter()
             .filter(|s| s.status.needs_attention() && self.is_unseen(&s.session_id))
             .count()

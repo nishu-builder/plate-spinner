@@ -9,7 +9,7 @@ use plate_spinner::db::Database;
 use plate_spinner::ensure_daemon_running;
 
 #[derive(Parser)]
-#[command(name = "sp", about = "Dashboard for managing Claude Code sessions")]
+#[command(name = "sp", about = "Dashboard for managing Claude Code plates")]
 struct Cli {
     #[command(subcommand)]
     command: Option<Commands>,
@@ -24,8 +24,8 @@ enum Commands {
         #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
         claude_args: Vec<String>,
     },
-    #[command(about = "List sessions as JSON")]
-    Sessions,
+    #[command(about = "List plates as JSON")]
+    Plates,
     #[command(about = "Install hooks")]
     Install,
     #[command(about = "Stop the daemon")]
@@ -84,8 +84,8 @@ fn main() {
                 std::process::exit(1);
             }
         }
-        Some(Commands::Sessions) => {
-            if let Err(e) = plate_spinner::cli::sessions::sessions() {
+        Some(Commands::Plates) => {
+            if let Err(e) = plate_spinner::cli::plates::plates() {
                 eprintln!("Error: {}", e);
                 std::process::exit(1);
             }

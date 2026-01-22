@@ -5,7 +5,7 @@ use axum::{
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
-use crate::models::{HookEvent, SessionStatus};
+use crate::models::{HookEvent, PlateStatus};
 use super::state::{AppState, WsMessage};
 
 #[derive(Serialize)]
@@ -30,21 +30,19 @@ pub async fn status() -> Json<StatusResponse> {
     })
 }
 
-fn determine_status(event: &HookEvent) -> SessionStatus {
+fn determine_status(event: &HookEvent) -> PlateStatus {
     match event.event_type.as_str() {
         "stop" => {
             if event.error.is_some() {
-                SessionStatus::Error
+                PlateStatus::Error
             } else {
-                SessionStatus::Idle
+                PlateStatus::Idle
             }
         }
-        "session_start" => SessionStatus::Running,
-        // PreToolUse: tool is ABOUT to run - check if it needs user input
-        "tool_start" => SessionStatus::from_tool(event.tool_name.as_deref().unwrap_or("")),
-        // PostToolUse: tool COMPLETED - Claude is processing result
-        "tool_call" => SessionStatus::Running,
-        _ => SessionStatus::Running,
+        "session_start" => PlateStatus::Running,
+        "tool_start" => PlateStatus::from_tool(event.tool_name.as_deref().unwrap_or("")),
+        "tool_call" => PlateStatus::Running,
+        _ => PlateStatus::Running,
     }
 }
 
@@ -57,7 +55,7 @@ pub async fn post_event(
 
     {
         let db = state.db.lock().unwrap();
-        let _ = db.upsert_session(
+        let _ = db.upsert_plate(
             &event.session_id,
             &event.project_path,
             event.transcript_path.as_deref(),
@@ -84,13 +82,13 @@ pub async fn post_event(
         );
     }
 
-    let _ = state.tx.send(WsMessage::SessionUpdate(event.session_id.clone()));
+    let _ = state.tx.send(WsMessage::PlateUpdate(event.session_id.clone()));
     Json(serde_json::json!({"status": "ok"}))
 }
 
-pub async fn get_sessions(State(state): State<Arc<AppState>>) -> Json<Vec<crate::models::Session>> {
+pub async fn get_plates(State(state): State<Arc<AppState>>) -> Json<Vec<crate::models::Plate>> {
     let db = state.db.lock().unwrap();
-    Json(db.get_sessions().unwrap_or_default())
+    Json(db.get_plates().unwrap_or_default())
 }
 
 #[derive(Deserialize)]
@@ -98,7 +96,7 @@ pub struct RegisterRequest {
     project_path: String,
 }
 
-pub async fn register_session(
+pub async fn register_plate(
     State(state): State<Arc<AppState>>,
     Json(req): Json<RegisterRequest>,
 ) -> Json<serde_json::Value> {
@@ -107,7 +105,7 @@ pub async fn register_session(
         let db = state.db.lock().unwrap();
         db.register_placeholder(&req.project_path, &now).unwrap_or_default()
     };
-    let _ = state.tx.send(WsMessage::SessionUpdate(placeholder_id.clone()));
+    let _ = state.tx.send(WsMessage::PlateUpdate(placeholder_id.clone()));
     Json(serde_json::json!({"status": "ok", "placeholder_id": placeholder_id}))
 }
 
@@ -116,24 +114,24 @@ pub async fn mark_stopped(
     Json(req): Json<RegisterRequest>,
 ) -> Json<serde_json::Value> {
     let now = chrono::Utc::now().to_rfc3339();
-    let session_ids = {
+    let plate_ids = {
         let db = state.db.lock().unwrap();
         db.mark_stopped(&req.project_path, &now).unwrap_or_default()
     };
-    for session_id in &session_ids {
-        let _ = state.tx.send(WsMessage::SessionUpdate(session_id.clone()));
+    for plate_id in &plate_ids {
+        let _ = state.tx.send(WsMessage::PlateUpdate(plate_id.clone()));
     }
-    Json(serde_json::json!({"status": "ok", "count": session_ids.len()}))
+    Json(serde_json::json!({"status": "ok", "count": plate_ids.len()}))
 }
 
-pub async fn delete_session(
+pub async fn delete_plate(
     State(state): State<Arc<AppState>>,
     Path(session_id): Path<String>,
 ) -> Json<serde_json::Value> {
     {
         let db = state.db.lock().unwrap();
-        let _ = db.delete_session(&session_id);
+        let _ = db.delete_plate(&session_id);
     }
-    let _ = state.tx.send(WsMessage::SessionDeleted(session_id));
+    let _ = state.tx.send(WsMessage::PlateDeleted(session_id));
     Json(serde_json::json!({"status": "ok"}))
 }

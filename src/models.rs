@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "snake_case")]
-pub enum SessionStatus {
+pub enum PlateStatus {
     #[default]
     Starting,
     Running,
@@ -13,7 +13,7 @@ pub enum SessionStatus {
     Closed,
 }
 
-impl SessionStatus {
+impl PlateStatus {
     pub fn from_tool(tool_name: &str) -> Self {
         match tool_name {
             "AskUserQuestion" => Self::AwaitingInput,
@@ -66,7 +66,7 @@ impl SessionStatus {
     }
 }
 
-impl std::str::FromStr for SessionStatus {
+impl std::str::FromStr for PlateStatus {
     type Err = ();
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
@@ -101,14 +101,14 @@ pub struct HookEvent {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Session {
+pub struct Plate {
     pub session_id: String,
     pub project_path: String,
     #[serde(default)]
     pub transcript_path: Option<String>,
     #[serde(default)]
     pub git_branch: Option<String>,
-    pub status: SessionStatus,
+    pub status: PlateStatus,
     #[serde(default)]
     pub last_event_type: Option<String>,
     #[serde(default)]
@@ -121,7 +121,7 @@ pub struct Session {
     pub updated_at: String,
 }
 
-impl Session {
+impl Plate {
     pub fn project_name(&self) -> &str {
         self.project_path
             .trim_end_matches('/')

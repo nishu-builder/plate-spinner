@@ -2,10 +2,10 @@ use anyhow::Result;
 
 use crate::hook::DAEMON_URL;
 
-pub fn sessions() -> Result<()> {
+pub fn plates() -> Result<()> {
     let client = reqwest::blocking::Client::new();
     let response = client
-        .get(format!("{}/sessions", DAEMON_URL))
+        .get(format!("{}/plates", DAEMON_URL))
         .timeout(std::time::Duration::from_secs(5))
         .send()?;
 

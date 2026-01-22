@@ -1,6 +1,6 @@
 # Plate-Spinner
 
-Dashboard for managing multiple concurrent Claude Code sessions.
+Dashboard for managing multiple concurrent Claude Code plates.
 
 ## Quick Start
 
@@ -8,38 +8,38 @@ Dashboard for managing multiple concurrent Claude Code sessions.
 cargo install --path .
 sp install              # Prints hook config to add to ~/.claude/settings.json
 sp                      # Open dashboard (terminal 1)
-sp run                  # Start tracked session (terminal 2)
+sp run                  # Start tracked plate (terminal 2)
 sp run                  # Start another (terminal 3)
 ```
 
 ## Usage
 
-**Dashboard** (`sp`): Shows all sessions in two groups:
-- **OPEN**: Active sessions, sorted with "needs attention" first
-- **CLOSED**: Sessions that have exited
+**Dashboard** (`sp`): Shows all plates in two groups:
+- **OPEN**: Active plates, sorted with "needs attention" first
+- **CLOSED**: Plates that have exited
 
 Keybindings:
-- `1-9` - Jump to session and resume
-- `up/down` - Navigate sessions
-- `enter` - Resume selected session
-- `delete` - Dismiss selected session
+- `1-9` - Jump to plate and resume
+- `up/down` - Navigate plates
+- `enter` - Resume selected plate
+- `delete` - Dismiss selected plate
 - `s` - Sound settings
 - `r` - Refresh
 - `q` - Quit
 
-## Session States
+## Plate States
 
 | Icon | Status | Trigger |
 |------|--------|---------|
-| `.` | starting | Session registered, no activity yet |
+| `.` | starting | Plate registered, no activity yet |
 | `>` | running | Tool executing |
 | `?` | awaiting_input | `AskUserQuestion` called |
 | `!` | awaiting_approval | `ExitPlanMode` called |
 | `-` | idle | Stop event received |
 | `X` | error | Stop event with error |
-| `x` | closed | Session wrapper exited |
+| `x` | closed | Plate wrapper exited |
 
-AI summaries appear when sessions reach a waiting state (requires `ANTHROPIC_API_KEY`).
+AI summaries appear when plates reach a waiting state (requires `ANTHROPIC_API_KEY`).
 
 ## Commands
 
@@ -48,7 +48,7 @@ sp              Dashboard (auto-starts daemon)
 sp run [args]   Launch Claude with tracking
 sp install      Print settings.json hook config
 sp kill         Stop daemon
-sp sessions     List sessions as JSON
+sp plates       List plates as JSON
 sp daemon       Run daemon in foreground
 sp config       Manage configuration
   path          Print config file path

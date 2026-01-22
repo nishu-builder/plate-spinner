@@ -22,11 +22,11 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
     let send_task = tokio::spawn(async move {
         while let Ok(msg) = rx.recv().await {
             let json = match msg {
-                WsMessage::SessionUpdate(id) => {
-                    serde_json::json!({"type": "session_update", "session_id": id})
+                WsMessage::PlateUpdate(id) => {
+                    serde_json::json!({"type": "plate_update", "session_id": id})
                 }
-                WsMessage::SessionDeleted(id) => {
-                    serde_json::json!({"type": "session_deleted", "session_id": id})
+                WsMessage::PlateDeleted(id) => {
+                    serde_json::json!({"type": "plate_deleted", "session_id": id})
                 }
             };
             if sender.send(Message::Text(json.to_string().into())).await.is_err() {

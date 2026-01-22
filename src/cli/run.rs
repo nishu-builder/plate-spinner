@@ -22,7 +22,7 @@ extern "C" fn signal_handler(sig: libc::c_int) {
 
 fn notify_stopped(project_path: &str) {
     let _ = reqwest::blocking::Client::new()
-        .post(format!("{}/sessions/stopped", DAEMON_URL))
+        .post(format!("{}/plates/stopped", DAEMON_URL))
         .json(&serde_json::json!({"project_path": project_path}))
         .timeout(std::time::Duration::from_secs(2))
         .send();

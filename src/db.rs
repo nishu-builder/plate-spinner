@@ -3,7 +3,7 @@ use rusqlite::{Connection, params};
 use std::path::Path;
 
 const SCHEMA: &str = r#"
-CREATE TABLE IF NOT EXISTS sessions (
+CREATE TABLE IF NOT EXISTS plates (
     session_id TEXT PRIMARY KEY,
     project_path TEXT NOT NULL,
     transcript_path TEXT,
@@ -17,7 +17,7 @@ CREATE TABLE IF NOT EXISTS sessions (
 );
 
 CREATE TABLE IF NOT EXISTS todos (
-    session_id TEXT PRIMARY KEY REFERENCES sessions(session_id),
+    session_id TEXT PRIMARY KEY REFERENCES plates(session_id),
     todos_json TEXT,
     updated_at TEXT NOT NULL
 );
@@ -30,7 +30,7 @@ CREATE TABLE IF NOT EXISTS events (
     created_at TEXT NOT NULL
 );
 
-CREATE INDEX IF NOT EXISTS idx_sessions_status ON sessions(status);
+CREATE INDEX IF NOT EXISTS idx_plates_status ON plates(status);
 CREATE INDEX IF NOT EXISTS idx_events_session ON events(session_id);
 "#;
 
@@ -57,19 +57,19 @@ impl Database {
 
     fn migrate(&self) -> Result<()> {
         let columns: Vec<String> = self.conn
-            .prepare("PRAGMA table_info(sessions)")?
+            .prepare("PRAGMA table_info(plates)")?
             .query_map([], |row| row.get(1))?
             .filter_map(|r| r.ok())
             .collect();
 
         if !columns.contains(&"summary".to_string()) {
-            self.conn.execute("ALTER TABLE sessions ADD COLUMN summary TEXT", [])?;
+            self.conn.execute("ALTER TABLE plates ADD COLUMN summary TEXT", [])?;
         }
         if !columns.contains(&"transcript_path".to_string()) {
-            self.conn.execute("ALTER TABLE sessions ADD COLUMN transcript_path TEXT", [])?;
+            self.conn.execute("ALTER TABLE plates ADD COLUMN transcript_path TEXT", [])?;
         }
         if !columns.contains(&"git_branch".to_string()) {
-            self.conn.execute("ALTER TABLE sessions ADD COLUMN git_branch TEXT", [])?;
+            self.conn.execute("ALTER TABLE plates ADD COLUMN git_branch TEXT", [])?;
         }
         Ok(())
     }
@@ -78,7 +78,7 @@ impl Database {
         &self.conn
     }
 
-    pub fn upsert_session(
+    pub fn upsert_plate(
         &self,
         session_id: &str,
         project_path: &str,
@@ -91,7 +91,7 @@ impl Database {
     ) -> Result<bool> {
         let existing: Option<String> = self.conn
             .query_row(
-                "SELECT session_id FROM sessions WHERE session_id = ?",
+                "SELECT session_id FROM plates WHERE session_id = ?",
                 [session_id],
                 |row| row.get(0),
             )
@@ -99,15 +99,15 @@ impl Database {
 
         if existing.is_none() {
             let placeholder_id = format!("pending:{}", project_path);
-            self.conn.execute("DELETE FROM sessions WHERE session_id = ?", [&placeholder_id])?;
+            self.conn.execute("DELETE FROM plates WHERE session_id = ?", [&placeholder_id])?;
             self.conn.execute(
-                "INSERT INTO sessions (session_id, project_path, transcript_path, git_branch, status, last_event_type, last_tool, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                "INSERT INTO plates (session_id, project_path, transcript_path, git_branch, status, last_event_type, last_tool, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 params![session_id, project_path, transcript_path, git_branch, status, event_type, tool_name, now, now],
             )?;
             Ok(false)
         } else {
             self.conn.execute(
-                "UPDATE sessions SET status = ?, last_event_type = ?, last_tool = COALESCE(?, last_tool), transcript_path = COALESCE(?, transcript_path), git_branch = COALESCE(?, git_branch), updated_at = ? WHERE session_id = ?",
+                "UPDATE plates SET status = ?, last_event_type = ?, last_tool = COALESCE(?, last_tool), transcript_path = COALESCE(?, transcript_path), git_branch = COALESCE(?, git_branch), updated_at = ? WHERE session_id = ?",
                 params![status, event_type, tool_name, transcript_path, git_branch, now, session_id],
             )?;
             Ok(true)
@@ -130,12 +130,12 @@ impl Database {
         Ok(())
     }
 
-    pub fn get_sessions(&self) -> Result<Vec<crate::models::Session>> {
+    pub fn get_plates(&self) -> Result<Vec<crate::models::Plate>> {
         let mut stmt = self.conn.prepare(
             r#"SELECT s.session_id, s.project_path, s.git_branch, s.status,
                       s.last_event_type, s.last_tool, s.summary, s.created_at, s.updated_at,
                       s.transcript_path, t.todos_json
-               FROM sessions s
+               FROM plates s
                LEFT JOIN todos t ON s.session_id = t.session_id
                ORDER BY s.updated_at DESC"#
         )?;
@@ -152,7 +152,7 @@ impl Database {
             let status_str: String = row.get(3)?;
             let status = status_str.parse().unwrap_or_default();
 
-            Ok(crate::models::Session {
+            Ok(crate::models::Plate {
                 session_id: row.get(0)?,
                 project_path: row.get(1)?,
                 git_branch: row.get(2)?,
@@ -173,7 +173,7 @@ impl Database {
     pub fn get_transcript_path(&self, session_id: &str) -> Result<Option<String>> {
         self.conn
             .query_row(
-                "SELECT transcript_path FROM sessions WHERE session_id = ?",
+                "SELECT transcript_path FROM plates WHERE session_id = ?",
                 [session_id],
                 |row| row.get(0),
             )
@@ -183,7 +183,7 @@ impl Database {
     pub fn get_summary(&self, session_id: &str) -> Result<Option<String>> {
         self.conn
             .query_row(
-                "SELECT summary FROM sessions WHERE session_id = ?",
+                "SELECT summary FROM plates WHERE session_id = ?",
                 [session_id],
                 |row| row.get(0),
             )
@@ -192,7 +192,7 @@ impl Database {
 
     pub fn set_summary(&self, session_id: &str, summary: &str) -> Result<()> {
         self.conn.execute(
-            "UPDATE sessions SET summary = ? WHERE session_id = ?",
+            "UPDATE plates SET summary = ? WHERE session_id = ?",
             params![summary, session_id],
         )?;
         Ok(())
@@ -212,7 +212,7 @@ impl Database {
         let placeholder_id = format!("pending:{}", project_path);
         let existing: Option<String> = self.conn
             .query_row(
-                "SELECT session_id FROM sessions WHERE session_id = ?",
+                "SELECT session_id FROM plates WHERE session_id = ?",
                 [&placeholder_id],
                 |row| row.get(0),
             )
@@ -220,7 +220,7 @@ impl Database {
 
         if existing.is_none() {
             self.conn.execute(
-                "INSERT INTO sessions (session_id, project_path, status, created_at, updated_at) VALUES (?, ?, 'starting', ?, ?)",
+                "INSERT INTO plates (session_id, project_path, status, created_at, updated_at) VALUES (?, ?, 'starting', ?, ?)",
                 params![placeholder_id, project_path, now, now],
             )?;
         }
@@ -229,26 +229,26 @@ impl Database {
 
     pub fn mark_stopped(&self, project_path: &str, now: &str) -> Result<Vec<String>> {
         let mut stmt = self.conn.prepare(
-            "SELECT session_id FROM sessions WHERE project_path = ? AND status NOT IN ('closed', 'error')"
+            "SELECT session_id FROM plates WHERE project_path = ? AND status NOT IN ('closed', 'error')"
         )?;
-        let session_ids: Vec<String> = stmt
+        let plate_ids: Vec<String> = stmt
             .query_map([project_path], |row| row.get(0))?
             .filter_map(|r| r.ok())
             .collect();
 
-        for session_id in &session_ids {
+        for plate_id in &plate_ids {
             self.conn.execute(
-                "UPDATE sessions SET status = 'closed', updated_at = ? WHERE session_id = ?",
-                params![now, session_id],
+                "UPDATE plates SET status = 'closed', updated_at = ? WHERE session_id = ?",
+                params![now, plate_id],
             )?;
         }
-        Ok(session_ids)
+        Ok(plate_ids)
     }
 
-    pub fn delete_session(&self, session_id: &str) -> Result<()> {
+    pub fn delete_plate(&self, session_id: &str) -> Result<()> {
         self.conn.execute("DELETE FROM todos WHERE session_id = ?", [session_id])?;
         self.conn.execute("DELETE FROM events WHERE session_id = ?", [session_id])?;
-        self.conn.execute("DELETE FROM sessions WHERE session_id = ?", [session_id])?;
+        self.conn.execute("DELETE FROM plates WHERE session_id = ?", [session_id])?;
         Ok(())
     }
 }

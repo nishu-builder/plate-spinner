@@ -5,7 +5,7 @@ use tokio::sync::mpsc;
 
 use crate::config::{load_config, play_sound, save_config};
 use crate::hook::DAEMON_URL;
-use crate::models::{Session, SessionStatus};
+use crate::models::{Plate, PlateStatus};
 
 use super::state::App;
 use super::ui::{next_sound, prev_sound, render};
@@ -47,7 +47,7 @@ pub async fn run() -> Result<Option<(String, String)>> {
 
     ratatui::restore();
 
-    Ok(app.resume_session)
+    Ok(app.resume_plate)
 }
 
 async fn handle_key(app: &mut App, key: KeyCode) {
@@ -154,32 +154,32 @@ async fn handle_sound_settings_key(app: &mut App, key: KeyCode) {
 
 async fn refresh(app: &mut App) {
     let client = reqwest::Client::new();
-    let url = format!("{}/sessions", DAEMON_URL);
+    let url = format!("{}/plates", DAEMON_URL);
 
     let Ok(resp) = client.get(&url).send().await else {
         return;
     };
 
-    let Ok(sessions): Result<Vec<Session>, _> = resp.json().await else {
+    let Ok(plates): Result<Vec<Plate>, _> = resp.json().await else {
         return;
     };
 
-    for session in &sessions {
-        let prev_status = app.previous_statuses.get(&session.session_id);
+    for plate in &plates {
+        let prev_status = app.previous_statuses.get(&plate.session_id);
 
         if let Some(&prev) = prev_status {
-            if prev == SessionStatus::Running && session.status.needs_attention() {
-                if session.status != SessionStatus::Closed {
-                    app.seen_sessions.remove(&session.session_id);
+            if prev == PlateStatus::Running && plate.status.needs_attention() {
+                if plate.status != PlateStatus::Closed {
+                    app.seen_plates.remove(&plate.session_id);
                 }
 
                 if app.config.sounds.enabled {
-                    let sound = match session.status {
-                        SessionStatus::AwaitingInput => &app.config.sounds.awaiting_input,
-                        SessionStatus::AwaitingApproval => &app.config.sounds.awaiting_approval,
-                        SessionStatus::Idle => &app.config.sounds.idle,
-                        SessionStatus::Error => &app.config.sounds.error,
-                        SessionStatus::Closed => &app.config.sounds.closed,
+                    let sound = match plate.status {
+                        PlateStatus::AwaitingInput => &app.config.sounds.awaiting_input,
+                        PlateStatus::AwaitingApproval => &app.config.sounds.awaiting_approval,
+                        PlateStatus::Idle => &app.config.sounds.idle,
+                        PlateStatus::Error => &app.config.sounds.error,
+                        PlateStatus::Closed => &app.config.sounds.closed,
                         _ => "none",
                     };
                     play_sound(sound);
@@ -188,10 +188,10 @@ async fn refresh(app: &mut App) {
         }
 
         app.previous_statuses
-            .insert(session.session_id.clone(), session.status);
+            .insert(plate.session_id.clone(), plate.status);
     }
 
-    app.sessions = sessions;
+    app.plates = plates;
 
     let max_idx = app.display_order().len().saturating_sub(1);
     if app.selected_index > max_idx {
@@ -200,13 +200,13 @@ async fn refresh(app: &mut App) {
 }
 
 async fn dismiss(app: &mut App) {
-    let sessions = app.display_order();
-    let Some(session) = sessions.get(app.selected_index) else {
+    let plates = app.display_order();
+    let Some(plate) = plates.get(app.selected_index) else {
         return;
     };
 
     let client = reqwest::Client::new();
-    let url = format!("{}/sessions/{}", DAEMON_URL, session.session_id);
+    let url = format!("{}/plates/{}", DAEMON_URL, plate.session_id);
     let _ = client.delete(&url).send().await;
 
     refresh(app).await;
