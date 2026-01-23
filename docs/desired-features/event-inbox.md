@@ -1,50 +1,16 @@
-# Feature: tmux Integration + Event Inbox
+# Feature: Event Inbox
 
 ## Problem
 
-Multiple Claude Code sessions run concurrently. External systems (CI, code review, reminders, custom scripts) may want to send work to these sessions, but there's no way to:
-1. Inject prompts into running sessions
-2. Queue external events for dispatch to sessions
+External systems (CI, code review, reminders, custom scripts) may want to send work to Claude Code sessions, but there's no way to queue external events for dispatch to sessions.
 
 ## Solution
 
-Two features working together:
-
-1. **tmux integration** - `sp run` wraps sessions in tmux, enabling programmatic prompt injection via `tmux send-keys`
-2. **Event inbox** - Generic event queue with manual dispatch to sessions
+Generic event queue with manual dispatch to sessions via tmux integration (already implemented).
 
 ---
 
-## Part 1: tmux Integration
-
-### Behavior
-
-`sp run` will:
-1. Create tmux session with name `sp-{7-char-hash}`
-2. Run `claude` inside it
-3. Attach user to it
-
-Benefits:
-- Inject prompts: `tmux send-keys -t sp-abc123 "Fix the thing" Enter`
-- Resume: `tmux attach -t sp-abc123`
-- Detach: `ctrl-b d`
-
-### Edge Cases
-
-- **Already in tmux**: Create window instead of nested session
-- **tmux not installed**: Error with clear message (tmux is required)
-
-### Schema Change
-
-```sql
-ALTER TABLE sessions ADD COLUMN tmux_target TEXT;
-```
-
----
-
-## Part 2: Event Inbox
-
-### Architecture: Two Separate Event Systems
+## Architecture: Two Separate Event Systems
 
 plate-spinner has two distinct event flows:
 
@@ -58,7 +24,7 @@ plate-spinner has two distinct event flows:
 
 These remain separate. CC hooks update session state automatically. Inbox events queue for human triage.
 
-### Generic Event Schema
+## Generic Event Schema
 
 ```json
 {
@@ -71,7 +37,7 @@ These remain separate. CC hooks update session state automatically. Inbox events
 
 The schema is intentionally minimal and generic. Users define their own `type` values and configure templates per type.
 
-### Database
+## Database
 
 ```sql
 CREATE TABLE inbox (
@@ -88,14 +54,14 @@ CREATE TABLE inbox (
 );
 ```
 
-### API
+## API
 
 - `POST /inbox` - Create event
 - `GET /inbox` - List events (optional `?status=pending`)
 - `PATCH /inbox/{id}` - Update status
 - `POST /inbox/{id}/dispatch` - Send to session via tmux
 
-### Example Usage
+## Example Usage
 
 Anyone can POST events:
 
@@ -126,7 +92,7 @@ curl -X POST localhost:7890/inbox -d '{
 echo '{"type":"note","title":"Look at this"}' | curl -X POST localhost:7890/inbox -d @-
 ```
 
-### User-Configurable Templates
+## User-Configurable Templates
 
 Templates live in config, keyed by `type`:
 
@@ -159,7 +125,7 @@ inbox:
 
 Templates can reference `{type}`, `{title}`, `{body}`, and any `{context.KEY}` field.
 
-### Dashboard UX
+## Dashboard UX
 
 Layout: Two sections - SESSIONS and INBOX
 
@@ -173,7 +139,7 @@ Keybindings:
 | `x` | Dismiss event |
 | `z` | Snooze event |
 
-### Dispatch Mechanism
+## Dispatch Mechanism
 
 When dispatching event to session:
 1. Look up session's `tmux_target`
