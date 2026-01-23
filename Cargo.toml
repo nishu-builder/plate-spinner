@@ -46,5 +46,3 @@ strip = true
 inherits = "release"
 lto = "thin"
 
-[workspace.metadata.dist]
-allow-dirty = ["ci"]
