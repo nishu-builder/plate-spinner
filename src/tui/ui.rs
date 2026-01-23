@@ -88,37 +88,59 @@ fn render_plates(frame: &mut Frame, app: &App, area: Rect) {
         ));
     }
 
-    if closed_count > 0 && !app.config.minimal_mode {
-        if open_count > 0 {
-            items.push(ListItem::new(Line::from("")));
-        }
-
-        let closed_header_selected = app.is_on_closed_header();
-        let indicator = if app.closed_expanded { "v" } else { ">" };
-        let header_text = format!("{} closed ({})", indicator, closed_count);
-        let style = if closed_header_selected {
-            Style::default()
-                .add_modifier(Modifier::DIM)
-                .add_modifier(Modifier::REVERSED)
+    if closed_count > 0 {
+        if app.config.minimal_mode {
+            if app.closed_expanded {
+                if open_count > 0 {
+                    items.push(ListItem::new(Line::from("")));
+                }
+                for (closed_idx, plate) in closed_plates.iter().enumerate() {
+                    let display_idx = open_count + closed_idx;
+                    let is_selected = app.selected_index == Some(display_idx);
+                    items.push(render_plate_item(
+                        app,
+                        plate,
+                        display_idx,
+                        num_width,
+                        prefix_width,
+                        summary_width,
+                        area.width as usize,
+                        is_selected,
+                    ));
+                }
+            }
         } else {
-            Style::default().add_modifier(Modifier::DIM)
-        };
-        items.push(ListItem::new(Line::from(Span::styled(header_text, style))));
+            if open_count > 0 {
+                items.push(ListItem::new(Line::from("")));
+            }
 
-        if app.closed_expanded {
-            for (closed_idx, plate) in closed_plates.iter().enumerate() {
-                let display_idx = open_count + 1 + closed_idx;
-                let is_selected = app.selected_index == Some(display_idx);
-                items.push(render_plate_item(
-                    app,
-                    plate,
-                    display_idx,
-                    num_width,
-                    prefix_width,
-                    summary_width,
-                    area.width as usize,
-                    is_selected,
-                ));
+            let closed_header_selected = app.is_on_closed_header();
+            let indicator = if app.closed_expanded { "v" } else { ">" };
+            let header_text = format!("{} closed ({})", indicator, closed_count);
+            let style = if closed_header_selected {
+                Style::default()
+                    .add_modifier(Modifier::DIM)
+                    .add_modifier(Modifier::REVERSED)
+            } else {
+                Style::default().add_modifier(Modifier::DIM)
+            };
+            items.push(ListItem::new(Line::from(Span::styled(header_text, style))));
+
+            if app.closed_expanded {
+                for (closed_idx, plate) in closed_plates.iter().enumerate() {
+                    let display_idx = open_count + 1 + closed_idx;
+                    let is_selected = app.selected_index == Some(display_idx);
+                    items.push(render_plate_item(
+                        app,
+                        plate,
+                        display_idx,
+                        num_width,
+                        prefix_width,
+                        summary_width,
+                        area.width as usize,
+                        is_selected,
+                    ));
+                }
             }
         }
     }

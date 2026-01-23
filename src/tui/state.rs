@@ -94,8 +94,14 @@ impl App {
     pub fn max_selectable_index(&self) -> usize {
         let open_count = self.open_plates().len();
         let closed_count = self.closed_plates().len();
-        if closed_count == 0 || self.config.minimal_mode {
+        if closed_count == 0 {
             open_count.saturating_sub(1)
+        } else if self.config.minimal_mode {
+            if self.closed_expanded {
+                (open_count + closed_count).saturating_sub(1)
+            } else {
+                open_count.saturating_sub(1)
+            }
         } else if self.closed_expanded {
             open_count + closed_count
         } else {
@@ -187,8 +193,14 @@ impl App {
 
         if idx < open_count {
             self.open_plates().get(idx).copied()
-        } else if self.closed_expanded && idx > open_count {
-            let closed_idx = idx - open_count - 1;
+        } else if self.closed_expanded {
+            let closed_idx = if self.config.minimal_mode {
+                idx - open_count
+            } else if idx > open_count {
+                idx - open_count - 1
+            } else {
+                return None;
+            };
             self.closed_plates().get(closed_idx).copied()
         } else {
             None
