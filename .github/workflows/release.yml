@@ -290,6 +290,8 @@ jobs:
         with:
           persist-credentials: false
           submodules: recursive
+      - name: Install system dependencies
+        run: sudo apt-get update && sudo apt-get install -y libasound2-dev
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
       - name: Publish to crates.io
