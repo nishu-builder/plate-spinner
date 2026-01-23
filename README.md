@@ -18,7 +18,12 @@ Never lose track of a plate you're spinning.
 cargo install plate-spinner
 ```
 
-Or via installer script:
+On Linux, you'll need ALSA development libraries for sound support:
+```bash
+sudo apt-get install libasound2-dev  # Debian/Ubuntu
+```
+
+Or via installer script (includes pre-built binary, no build dependencies needed):
 
 ```bash
 curl --proto '=https' --tlsv1.2 -LsSf https://github.com/nishu-builder/plate-spinner/releases/latest/download/plate-spinner-installer.sh | sh
