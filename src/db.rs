@@ -278,7 +278,7 @@ impl Database {
 
     pub fn mark_stopped(&self, project_path: &str, now: &str) -> Result<Vec<String>> {
         let mut stmt = self.conn.prepare(
-            "SELECT session_id FROM plates WHERE project_path = ? AND status NOT IN ('closed', 'error')"
+            "SELECT session_id FROM plates WHERE project_path = ? AND status NOT IN ('closed', 'error', 'idle')"
         )?;
         let plate_ids: Vec<String> = stmt
             .query_map([project_path], |row| row.get(0))?
