@@ -95,7 +95,7 @@ fn render_plates(frame: &mut Frame, app: &App, area: Rect) {
 
         let closed_header_selected = app.is_on_closed_header();
         let indicator = if app.closed_expanded { "v" } else { ">" };
-        let header_text = format!("{} CLOSED ({})", indicator, closed_count);
+        let header_text = format!("{} closed ({})", indicator, closed_count);
         let style = if closed_header_selected {
             Style::default()
                 .add_modifier(Modifier::DIM)
