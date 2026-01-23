@@ -79,7 +79,7 @@ Idle             - Session stopped normally, waiting for user
 AwaitingInput    - Claude called AskUserQuestion, waiting for user response
 AwaitingApproval - Claude called ExitPlanMode, waiting for plan approval
 Error            - Session stopped with an error
-Closed           - Session terminated
+Closed           - Session terminated (set externally, not via state machine)
 ```
 
 ### Event Enum
@@ -250,6 +250,50 @@ pub fn is_stale(transcript_mtime_secs: i64, last_event_time_secs: i64) -> bool {
 }
 ```
 
+## Two-Mechanism Design
+
+State consistency is maintained by two separate mechanisms that handle different failure modes:
+
+### 1. Health Check Recovery (State Machine)
+
+**Handles:** Missed hook events within a running session.
+
+**Problem:** Claude is still running, but we didn't receive a hook event (e.g., `ExitPlanMode` doesn't fire `PostToolUse`, hooks fail silently).
+
+**Mechanism:** Compare transcript mtime vs last event time. If the transcript advanced but we have no record of it, trigger `HealthCheckRecovery` event.
+
+**Guarantee:** Stuck attention states (AwaitingInput, AwaitingApproval, Error) recover to Idle within 12 seconds. See proof above.
+
+**Scope:** Only covers cases where the transcript advances. If the Claude process dies, the transcript doesn't advance, so this mechanism won't help.
+
+### 2. Process Termination Detection (External)
+
+**Handles:** Claude process exit (normal exit, Ctrl+C, terminal close, signals).
+
+**Problem:** When the Claude process terminates, the Stop hook may not fire (e.g., killed by signal, terminal closed). Even if it does fire, Stop means "turn ended" not "process exited" - the session should be Idle, not Closed.
+
+**Mechanism:** The `sp run` wrapper monitors the subprocess and calls `POST /plates/stopped` when it exits. This directly sets `status = 'closed'` in the database, bypassing the state machine.
+
+**Implementation:**
+- Normal exit: `sp run` calls `notify_stopped()` after subprocess returns
+- Signal death: Signal handler (SIGHUP, SIGINT, SIGTERM) calls `notify_stopped()` before exiting
+
+**Why separate from state machine:** The state machine models session state within a running process. Process termination is orthogonal - it's not an event from Claude Code, it's the absence of a process. Keeping these separate maintains clarity about what each mechanism guarantees.
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                        State Consistency                                 │
+├─────────────────────────────────┬───────────────────────────────────────┤
+│     Health Check Recovery       │    Process Termination Detection      │
+├─────────────────────────────────┼───────────────────────────────────────┤
+│ Missed hooks within session     │ Process exit                          │
+│ Transcript advances, we missed  │ No transcript activity                │
+│ HealthCheckRecovery event       │ Direct DB update via mark_stopped     │
+│ → Idle                          │ → Closed                              │
+│ 12 second guarantee             │ Immediate on process exit             │
+└─────────────────────────────────┴───────────────────────────────────────┘
+```
+
 ## Known Limitations
 
 ### 1. ExitPlanMode PostToolUse hook doesn't fire
@@ -277,3 +321,9 @@ pub fn is_stale(transcript_mtime_secs: i64, last_event_time_secs: i64) -> bool {
 **Issue:** Hooks use `|| true` to avoid blocking Claude Code, but this masks failures.
 
 **Mitigation:** Health check recovers from any missed events within 12 seconds.
+
+### 5. Process termination detection requires `sp run` wrapper
+
+**Issue:** Process termination detection only works when Claude is started via `sp run`. Sessions started directly with `claude` won't transition to Closed when the process exits.
+
+**Mitigation:** Users should use `sp run` to start sessions. Sessions started without it will remain in their last state until manually deleted.
