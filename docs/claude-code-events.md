@@ -158,6 +158,7 @@ impl PlateStatus {
             (PlateStatus::AwaitingInput, Event::HealthCheckRecovery) => PlateStatus::Idle,
             (PlateStatus::AwaitingApproval, Event::HealthCheckRecovery) => PlateStatus::Idle,
             (PlateStatus::Error, Event::HealthCheckRecovery) => PlateStatus::Idle,
+            (PlateStatus::Running, Event::HealthCheckRecovery) => PlateStatus::Idle,
             (state, Event::HealthCheckRecovery) => state,
         }
     }
@@ -188,7 +189,7 @@ All transitions land in a valid `PlateStatus` variant. Enforced at compile time 
 
 ### 3. Recovery Guarantee
 
-Stuck attention states recover to Idle within bounded time. See proof below.
+Stuck attention states and stale Running states recover to Idle within bounded time. See proof below.
 
 ### 4. Sequence Safety
 
@@ -202,17 +203,23 @@ Claude Code hooks have known gaps:
 - `ExitPlanMode` does not fire `PostToolUse`
 - No "turn complete" event exists
 - Hooks can fail silently
+- Stop hook may not fire (user interrupt, hook failure, process killed)
+- Sessions started without `sp run` wrapper have no process termination detection
 
-These gaps can leave sessions stuck in `AwaitingInput`, `AwaitingApproval`, or `Error` states.
+These gaps can leave sessions stuck in `AwaitingInput`, `AwaitingApproval`, `Error`, or `Running` states.
 
 ### Solution
 
-A health check runs every 10 seconds, comparing transcript modification time to our last recorded event time. If the transcript advanced without us knowing, we trigger a `HealthCheckRecovery` event.
+A health check runs every 10 seconds with two recovery mechanisms:
+
+1. **Attention state recovery:** For AwaitingInput, AwaitingApproval, and Error states, compare transcript mtime to our last recorded event time. If the transcript advanced without us knowing, trigger recovery.
+
+2. **Running state recovery:** For Running plates, check if the transcript hasn't been modified in 30 seconds. Claude Code writes to the transcript continuously during activity (bash_progress every second, assistant entries while streaming, etc.), so a stale transcript means the session is actually idle.
 
 ### Proof of Bounded Recovery
 
 ```
-THEOREM: Bounded Recovery
+THEOREM: Bounded Attention State Recovery
 
 Given:
   HEALTH_CHECK_INTERVAL_SECS = 10
@@ -235,6 +242,37 @@ Proof:
 QED
 ```
 
+```
+THEOREM: Bounded Running State Recovery
+
+Given:
+  HEALTH_CHECK_INTERVAL_SECS = 10
+  RUNNING_STALENESS_THRESHOLD_SECS = 30
+
+  A plate in Running state
+  Session is actually idle (no activity for 30+ seconds)
+
+Then:
+  The plate will recover to Idle within at most 40 seconds.
+
+Proof:
+  1. Health check runs every 10 seconds
+  2. On each run, it checks: now - transcript_mtime > 30
+  3. Maximum wait before detection: 10s (interval) + 30s (threshold) = 40s
+  4. Upon detection, plate transitions via HealthCheckRecovery → Idle
+
+QED
+```
+
+### Sleep/Wake Handling
+
+When the system sleeps, transcript mtime becomes stale but the session may still be active on wake. To prevent false positive recovery:
+
+1. Track time between health checks
+2. If the gap is much larger than expected (3x the interval), system was asleep
+3. Enter a 10-second grace period where Running recovery is skipped
+4. After grace period, resume normal recovery
+
 ### Implementation
 
 See `src/recovery.rs` for constants and `src/daemon/health_check.rs` for the health check loop.
@@ -243,10 +281,15 @@ See `src/recovery.rs` for constants and `src/daemon/health_check.rs` for the hea
 // src/recovery.rs
 pub const HEALTH_CHECK_INTERVAL_SECS: u64 = 10;
 pub const STALENESS_THRESHOLD_SECS: i64 = 2;
+pub const RUNNING_STALENESS_THRESHOLD_SECS: i64 = 30;
 pub const MAX_RECOVERY_TIME_SECS: u64 = 12;
 
 pub fn is_stale(transcript_mtime_secs: i64, last_event_time_secs: i64) -> bool {
     transcript_mtime_secs > last_event_time_secs + STALENESS_THRESHOLD_SECS
+}
+
+pub fn is_running_stale(transcript_mtime_secs: i64, now_secs: i64) -> bool {
+    now_secs - transcript_mtime_secs > RUNNING_STALENESS_THRESHOLD_SECS
 }
 ```
 
@@ -256,15 +299,19 @@ State consistency is maintained by two separate mechanisms that handle different
 
 ### 1. Health Check Recovery (State Machine)
 
-**Handles:** Missed hook events within a running session.
+**Handles:** Missed hook events and stale Running states.
 
-**Problem:** Claude is still running, but we didn't receive a hook event (e.g., `ExitPlanMode` doesn't fire `PostToolUse`, hooks fail silently).
+**Problem:** Claude is still running, but we didn't receive a hook event (e.g., `ExitPlanMode` doesn't fire `PostToolUse`, hooks fail silently). Or the Stop hook didn't fire (user interrupt, hook failure, process killed without `sp run` wrapper).
 
-**Mechanism:** Compare transcript mtime vs last event time. If the transcript advanced but we have no record of it, trigger `HealthCheckRecovery` event.
+**Mechanism:** Two checks:
+1. For attention states: Compare transcript mtime vs last event time. If the transcript advanced but we have no record of it, trigger recovery.
+2. For Running state: Check if transcript hasn't been modified in 30 seconds. Claude writes to transcript continuously during activity, so stale transcript means session is idle.
 
-**Guarantee:** Stuck attention states (AwaitingInput, AwaitingApproval, Error) recover to Idle within 12 seconds. See proof above.
+**Guarantee:**
+- Stuck attention states (AwaitingInput, AwaitingApproval, Error) recover to Idle within 12 seconds.
+- Stale Running states recover to Idle within 40 seconds.
 
-**Scope:** Only covers cases where the transcript advances. If the Claude process dies, the transcript doesn't advance, so this mechanism won't help.
+**Sleep/Wake:** Tracks health check cadence to detect system sleep. On wake, gives 10-second grace period before recovering Running states to avoid false positives.
 
 ### 2. Process Termination Detection (External)
 
@@ -288,9 +335,10 @@ State consistency is maintained by two separate mechanisms that handle different
 ├─────────────────────────────────┼───────────────────────────────────────┤
 │ Missed hooks within session     │ Process exit                          │
 │ Transcript advances, we missed  │ No transcript activity                │
+│ Or transcript stale (Running)   │                                       │
 │ HealthCheckRecovery event       │ Direct DB update via mark_stopped     │
 │ → Idle                          │ → Closed                              │
-│ 12 second guarantee             │ Immediate on process exit             │
+│ 12s (attention) / 40s (running) │ Immediate on process exit             │
 └─────────────────────────────────┴───────────────────────────────────────┘
 ```
 
@@ -326,4 +374,4 @@ State consistency is maintained by two separate mechanisms that handle different
 
 **Issue:** Process termination detection only works when Claude is started via `sp run`. Sessions started directly with `claude` won't transition to Closed when the process exits.
 
-**Mitigation:** Users should use `sp run` to start sessions. Sessions started without it will remain in their last state until manually deleted.
+**Mitigation:** Users should use `sp run` to start sessions. Sessions started without it will eventually recover via Running state staleness detection (within 40 seconds of inactivity), but won't transition to Closed.

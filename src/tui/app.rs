@@ -186,7 +186,9 @@ async fn refresh(app: &mut App) {
         let prev_status = app.previous_statuses.get(&plate.session_id);
 
         if let Some(&prev) = prev_status {
-            if prev == PlateStatus::Running && plate.status.needs_attention() {
+            if prev == PlateStatus::Running
+                && (plate.status.needs_attention() || plate.status == PlateStatus::Closed)
+            {
                 if plate.status != PlateStatus::Closed {
                     app.seen_plates.remove(&plate.session_id);
                 }

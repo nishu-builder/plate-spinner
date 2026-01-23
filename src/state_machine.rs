@@ -60,6 +60,7 @@ impl PlateStatus {
             (PlateStatus::AwaitingInput, Event::HealthCheckRecovery) => PlateStatus::Idle,
             (PlateStatus::AwaitingApproval, Event::HealthCheckRecovery) => PlateStatus::Idle,
             (PlateStatus::Error, Event::HealthCheckRecovery) => PlateStatus::Idle,
+            (PlateStatus::Running, Event::HealthCheckRecovery) => PlateStatus::Idle,
             (state, Event::HealthCheckRecovery) => state,
         }
     }
@@ -138,11 +139,15 @@ mod tests {
     }
 
     #[test]
-    fn health_check_recovery_no_op_for_other_states() {
+    fn health_check_recovery_from_running() {
         assert_eq!(
             PlateStatus::Running.transition(&Event::HealthCheckRecovery),
-            PlateStatus::Running
+            PlateStatus::Idle
         );
+    }
+
+    #[test]
+    fn health_check_recovery_no_op_for_other_states() {
         assert_eq!(
             PlateStatus::Idle.transition(&Event::HealthCheckRecovery),
             PlateStatus::Idle
