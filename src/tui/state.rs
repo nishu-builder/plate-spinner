@@ -1,4 +1,5 @@
 use std::collections::{HashMap, HashSet};
+use std::process::Command;
 
 use crate::config::{get_data_dir, Config};
 use crate::daemon::summarizer::get_api_key;
@@ -11,11 +12,11 @@ pub struct App {
     pub previous_statuses: HashMap<String, PlateStatus>,
     pub config: Config,
     pub should_quit: bool,
-    pub resume_plate: Option<(String, String)>,
     pub show_sound_settings: bool,
     pub sound_settings_row: usize,
     pub show_auth_banner: bool,
     pub closed_expanded: bool,
+    pub status_message: Option<String>,
 }
 
 impl App {
@@ -29,11 +30,11 @@ impl App {
             previous_statuses: HashMap::new(),
             config,
             should_quit: false,
-            resume_plate: None,
             show_sound_settings: false,
             sound_settings_row: 0,
             show_auth_banner: !has_api_key && !banner_dismissed,
             closed_expanded: false,
+            status_message: None,
         }
     }
 
@@ -131,9 +132,19 @@ impl App {
             return;
         }
 
+        if !self.config.tmux_mode {
+            return;
+        }
+
         if let Some(plate) = self.selected_plate() {
-            self.resume_plate = Some((plate.session_id.clone(), plate.project_path.clone()));
-            self.should_quit = true;
+            if let Some(ref target) = plate.tmux_target {
+                let window = target.split(':').last().unwrap_or(target);
+                let _ = Command::new("tmux")
+                    .args(["select-window", "-t", window])
+                    .status();
+            } else {
+                self.status_message = Some("No tmux window for this plate".to_string());
+            }
         }
     }
 

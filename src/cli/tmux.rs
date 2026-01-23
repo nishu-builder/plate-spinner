@@ -126,3 +126,25 @@ pub fn generate_grouped_session_name() -> String {
     );
     format!("sp-view-{:07x}", hasher.finish() & 0xFFFFFFF)
 }
+
+pub fn window_exists(session: &str, window: &str) -> bool {
+    Command::new("tmux")
+        .args(["list-windows", "-t", session, "-F", "#{window_name}"])
+        .output()
+        .map(|o| {
+            String::from_utf8_lossy(&o.stdout)
+                .lines()
+                .any(|w| w == window)
+        })
+        .unwrap_or(false)
+}
+
+pub fn select_window(target: &str) -> Result<()> {
+    let status = Command::new("tmux")
+        .args(["select-window", "-t", target])
+        .status()?;
+    if !status.success() {
+        bail!("Failed to select window: {}", target);
+    }
+    Ok(())
+}

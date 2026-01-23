@@ -10,7 +10,7 @@ use crate::models::{Plate, PlateStatus};
 use super::state::App;
 use super::ui::{next_sound, prev_sound, render};
 
-pub async fn run() -> Result<Option<(String, String)>> {
+pub async fn run() -> Result<()> {
     let config = load_config();
     let mut app = App::new(config);
 
@@ -47,7 +47,7 @@ pub async fn run() -> Result<Option<(String, String)>> {
 
     ratatui::restore();
 
-    Ok(app.resume_plate)
+    Ok(())
 }
 
 async fn handle_key(app: &mut App, key: KeyCode) {

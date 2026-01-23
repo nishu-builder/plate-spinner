@@ -156,14 +156,14 @@ impl Database {
         let mut stmt = self.conn.prepare(
             r#"SELECT s.session_id, s.project_path, s.git_branch, s.status,
                       s.last_event_type, s.last_tool, s.summary, s.created_at, s.updated_at,
-                      s.transcript_path, t.todos_json
+                      s.transcript_path, s.tmux_target, t.todos_json
                FROM plates s
                LEFT JOIN todos t ON s.session_id = t.session_id
                ORDER BY s.updated_at DESC"#,
         )?;
 
         let rows = stmt.query_map([], |row| {
-            let todos_json: Option<String> = row.get(10)?;
+            let todos_json: Option<String> = row.get(11)?;
             let todo_progress = todos_json.and_then(|json| {
                 serde_json::from_str::<Vec<serde_json::Value>>(&json)
                     .ok()
@@ -185,6 +185,7 @@ impl Database {
                 session_id: row.get(0)?,
                 project_path: row.get(1)?,
                 git_branch: row.get(2)?,
+                tmux_target: row.get(10)?,
                 status,
                 last_event_type: row.get(4)?,
                 last_tool: row.get(5)?,

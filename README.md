@@ -57,6 +57,7 @@ sp auth         Show authentication status
   path          Print auth config path
 sp config       Manage configuration
   path          Print config file path
+  set <k> <v>   Set a config value
   export        Export config to stdout
   import <file> Import config from file
 ```
@@ -73,9 +74,38 @@ sp hook session-start/pre-tool-use/post-tool-use/stop
 sp daemon (SQLite + WebSocket) --> sp (TUI)
 ```
 
+## Configuration
+
+Config file: `~/.config/plate-spinner/config.toml`
+
+### Modes
+
+Plate-spinner has two modes of operation:
+
+**Default mode** (`tmux_mode = false`):
+- `sp` runs dashboard directly in your terminal
+- `sp run` runs claude directly in your terminal
+- Each session runs in its own terminal window
+- Dashboard is view-only (Enter does nothing on rows)
+
+**Tmux mode** (`tmux_mode = true`):
+- `sp` opens dashboard in a tmux window
+- `sp run` creates a new tmux window for each claude session
+- All sessions share a tmux session with independent window views
+- Press Enter on a dashboard row to jump to that session's window
+- Navigate between windows with `ctrl-b w` or dashboard
+
+To enable tmux mode:
+```bash
+sp config set tmux_mode true
+```
+
+Tmux mode requires tmux 3.2+.
+
 ## Requirements
 
 - Claude Code
+- tmux 3.2+ (only if using tmux mode)
 
 ## Authentication
 

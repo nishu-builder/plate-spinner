@@ -6,6 +6,8 @@ use std::path::PathBuf;
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct Config {
     #[serde(default)]
+    pub tmux_mode: bool,
+    #[serde(default)]
     pub sounds: SoundsConfig,
     #[serde(default)]
     pub theme: ThemeConfig,

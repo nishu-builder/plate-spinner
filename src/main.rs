@@ -53,6 +53,8 @@ enum Commands {
 enum ConfigCommands {
     #[command(about = "Print config file path")]
     Path,
+    #[command(about = "Set a config value")]
+    Set { key: String, value: String },
     #[command(about = "Export config to stdout")]
     Export,
     #[command(about = "Import config from file")]
@@ -124,6 +126,9 @@ fn main() {
         Some(Commands::Config { command }) => {
             let result = match command {
                 Some(ConfigCommands::Path) => plate_spinner::cli::config::config_path(),
+                Some(ConfigCommands::Set { key, value }) => {
+                    plate_spinner::cli::config::config_set(&key, &value)
+                }
                 Some(ConfigCommands::Export) => plate_spinner::cli::config::config_export(),
                 Some(ConfigCommands::Import { file }) => {
                     plate_spinner::cli::config::config_import(&file)
@@ -165,86 +170,90 @@ fn main() {
         Some(Commands::Tui) => {
             ensure_daemon_running();
             let rt = tokio::runtime::Runtime::new().expect("Failed to create runtime");
-            let resume = rt.block_on(async { plate_spinner::tui::run().await });
-
-            match resume {
-                Ok(Some((session_id, project_path))) => {
-                    if let Err(e) = std::env::set_current_dir(&project_path) {
-                        eprintln!("Failed to change directory: {}", e);
-                        std::process::exit(1);
-                    }
-                    let err = Command::new("claude")
-                        .arg("--resume")
-                        .arg(&session_id)
-                        .exec();
-                    eprintln!("Failed to exec claude: {}", err);
-                    std::process::exit(1);
-                }
-                Ok(None) => {}
-                Err(e) => {
-                    eprintln!("TUI error: {}", e);
-                    std::process::exit(1);
-                }
+            if let Err(e) = rt.block_on(plate_spinner::tui::run()) {
+                eprintln!("TUI error: {}", e);
+                std::process::exit(1);
             }
         }
         None => {
-            use plate_spinner::cli::tmux;
+            use plate_spinner::config::load_config;
 
-            if let Err(e) = tmux::check_tmux_available() {
-                eprintln!("Error: {}", e);
-                std::process::exit(1);
-            }
-            if let Err(e) = tmux::check_tmux_version() {
-                eprintln!("Error: {}", e);
-                std::process::exit(1);
-            }
+            let config = load_config();
 
-            let in_tmux = tmux::is_inside_tmux();
-            let session = tmux::get_session_name();
+            if config.tmux_mode {
+                use plate_spinner::cli::tmux;
 
-            if !in_tmux {
-                if let Err(e) = tmux::ensure_session_exists(&session) {
+                if let Err(e) = tmux::check_tmux_available() {
                     eprintln!("Error: {}", e);
                     std::process::exit(1);
                 }
-            }
+                if let Err(e) = tmux::check_tmux_version() {
+                    eprintln!("Error: {}", e);
+                    std::process::exit(1);
+                }
 
-            let exe = std::env::current_exe().unwrap_or_else(|_| "sp".into());
-            let exe_str = exe.to_string_lossy();
+                let in_tmux = tmux::is_inside_tmux();
+                let session = tmux::get_session_name();
 
-            let mut cmd = Command::new("tmux");
-            cmd.args(["new-window", "-n", "dashboard"]);
+                if !in_tmux {
+                    if let Err(e) = tmux::ensure_session_exists(&session) {
+                        eprintln!("Error: {}", e);
+                        std::process::exit(1);
+                    }
+                }
 
-            if !in_tmux {
-                cmd.args(["-t", &format!("{}:", &session)]);
-            }
+                let dashboard_exists = tmux::window_exists(&session, "dashboard");
 
-            cmd.args(["--", &*exe_str, "tui"]);
+                if !dashboard_exists {
+                    let exe = std::env::current_exe().unwrap_or_else(|_| "sp".into());
+                    let exe_str = exe.to_string_lossy();
 
-            let status = cmd.status().expect("Failed to run tmux");
-            if !status.success() {
-                eprintln!("Failed to create tmux window");
-                std::process::exit(1);
-            }
+                    let mut cmd = Command::new("tmux");
+                    cmd.args(["new-window", "-n", "dashboard"]);
 
-            if !in_tmux {
-                // Use grouped session so this terminal has independent window view
-                let grouped = tmux::generate_grouped_session_name();
-                let err = Command::new("tmux")
-                    .args([
-                        "new-session",
-                        "-t",
-                        &session,
-                        "-s",
-                        &grouped,
-                        ";",
-                        "select-window",
-                        "-t",
-                        "dashboard",
-                    ])
-                    .exec();
-                eprintln!("Failed to attach to tmux: {}", err);
-                std::process::exit(1);
+                    if !in_tmux {
+                        cmd.args(["-t", &format!("{}:", &session)]);
+                    }
+
+                    cmd.args(["--", &*exe_str, "tui"]);
+
+                    let status = cmd.status().expect("Failed to run tmux");
+                    if !status.success() {
+                        eprintln!("Failed to create tmux window");
+                        std::process::exit(1);
+                    }
+                }
+
+                if in_tmux {
+                    if let Err(e) = tmux::select_window(&format!("{}:dashboard", session)) {
+                        eprintln!("Error: {}", e);
+                        std::process::exit(1);
+                    }
+                } else {
+                    let grouped = tmux::generate_grouped_session_name();
+                    let err = Command::new("tmux")
+                        .args([
+                            "new-session",
+                            "-t",
+                            &session,
+                            "-s",
+                            &grouped,
+                            ";",
+                            "select-window",
+                            "-t",
+                            "dashboard",
+                        ])
+                        .exec();
+                    eprintln!("Failed to attach to tmux: {}", err);
+                    std::process::exit(1);
+                }
+            } else {
+                ensure_daemon_running();
+                let rt = tokio::runtime::Runtime::new().expect("Failed to create runtime");
+                if let Err(e) = rt.block_on(plate_spinner::tui::run()) {
+                    eprintln!("TUI error: {}", e);
+                    std::process::exit(1);
+                }
             }
         }
     }

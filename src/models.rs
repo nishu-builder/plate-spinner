@@ -110,6 +110,8 @@ pub struct Plate {
     pub transcript_path: Option<String>,
     #[serde(default)]
     pub git_branch: Option<String>,
+    #[serde(default)]
+    pub tmux_target: Option<String>,
     pub status: PlateStatus,
     #[serde(default)]
     pub last_event_type: Option<String>,

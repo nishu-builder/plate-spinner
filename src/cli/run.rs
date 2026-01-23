@@ -3,6 +3,7 @@ use std::os::unix::process::CommandExt;
 use std::process::Command;
 
 use super::tmux;
+use crate::config::load_config;
 use crate::ensure_daemon_running;
 use crate::hook::DAEMON_URL;
 
@@ -15,6 +16,37 @@ fn notify_stopped(project_path: &str) {
 }
 
 pub fn run(claude_args: Vec<String>) -> Result<()> {
+    let config = load_config();
+
+    if config.tmux_mode {
+        run_with_tmux(claude_args)
+    } else {
+        run_without_tmux(claude_args)
+    }
+}
+
+fn run_without_tmux(claude_args: Vec<String>) -> Result<()> {
+    ensure_daemon_running();
+
+    let project_path = std::env::current_dir()
+        .map(|p| p.to_string_lossy().to_string())
+        .unwrap_or_else(|_| ".".to_string());
+
+    let mut cmd = Command::new("claude");
+    cmd.env("PLATE_SPINNER", "1");
+    cmd.args(&claude_args);
+
+    let status = cmd.status()?;
+
+    notify_stopped(&project_path);
+
+    if !status.success() {
+        std::process::exit(status.code().unwrap_or(1));
+    }
+    Ok(())
+}
+
+fn run_with_tmux(claude_args: Vec<String>) -> Result<()> {
     tmux::check_tmux_available()?;
     tmux::check_tmux_version()?;
     ensure_daemon_running();
@@ -62,7 +94,6 @@ pub fn run(claude_args: Vec<String>) -> Result<()> {
     }
 
     if !in_tmux {
-        // Use grouped session so this terminal has independent window view
         let grouped = tmux::generate_grouped_session_name();
         let err = Command::new("tmux")
             .args([

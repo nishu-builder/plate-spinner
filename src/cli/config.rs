@@ -29,3 +29,32 @@ pub fn config_import(file: &str) -> Result<()> {
     println!("Imported config from {}", file);
     Ok(())
 }
+
+pub fn config_set(key: &str, value: &str) -> Result<()> {
+    let mut config = load_config();
+
+    match key {
+        "tmux_mode" => {
+            config.tmux_mode = match value.to_lowercase().as_str() {
+                "true" | "1" | "on" | "yes" => true,
+                "false" | "0" | "off" | "no" => false,
+                _ => anyhow::bail!("Invalid value for tmux_mode: use true/false"),
+            };
+        }
+        "sounds.enabled" => {
+            config.sounds.enabled = match value.to_lowercase().as_str() {
+                "true" | "1" | "on" | "yes" => true,
+                "false" | "0" | "off" | "no" => false,
+                _ => anyhow::bail!("Invalid value for sounds.enabled: use true/false"),
+            };
+        }
+        _ => anyhow::bail!(
+            "Unknown config key: {}\nAvailable keys: tmux_mode, sounds.enabled",
+            key
+        ),
+    }
+
+    save_config(&config)?;
+    println!("{} = {}", key, value);
+    Ok(())
+}
