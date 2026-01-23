@@ -106,6 +106,13 @@ sp config set tmux_mode true
 
 Tmux mode requires tmux 3.2+.
 
+### Settings
+
+Press `s` in the dashboard to open the settings menu:
+
+- **Theme**: `default`, `light`, `monochrome`
+- **Sounds**: notification sounds when plates need attention
+
 ## Requirements
 
 - Claude Code
