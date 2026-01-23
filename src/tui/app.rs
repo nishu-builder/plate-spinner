@@ -65,10 +65,6 @@ async fn handle_key(app: &mut App, key: KeyCode) {
             app.sound_settings_row = 0;
         }
         KeyCode::Char('c') => app.toggle_closed(),
-        KeyCode::Char('m') => {
-            app.config.minimal_mode = !app.config.minimal_mode;
-            let _ = save_config(&app.config);
-        }
         KeyCode::Char('d') => {
             if app.show_auth_banner {
                 app.dismiss_auth_banner();
@@ -100,7 +96,7 @@ async fn handle_key(app: &mut App, key: KeyCode) {
 
 async fn handle_settings_key(app: &mut App, key: KeyCode) {
     match key {
-        KeyCode::Esc => app.show_sound_settings = false,
+        KeyCode::Esc | KeyCode::Char('s') => app.show_sound_settings = false,
         KeyCode::Up => {
             if app.sound_settings_row > 0 {
                 app.sound_settings_row -= 1;
@@ -119,10 +115,14 @@ async fn handle_settings_key(app: &mut App, key: KeyCode) {
                     None
                 }
                 1 => {
-                    app.config.sounds.enabled = !app.config.sounds.enabled;
+                    app.config.minimal_mode = !app.config.minimal_mode;
                     None
                 }
                 2 => {
+                    app.config.sounds.enabled = !app.config.sounds.enabled;
+                    None
+                }
+                3 => {
                     app.config.sounds.awaiting_input = if forward {
                         next_sound(&app.config.sounds.awaiting_input)
                     } else {
@@ -131,7 +131,7 @@ async fn handle_settings_key(app: &mut App, key: KeyCode) {
                     .to_string();
                     Some(app.config.sounds.awaiting_input.as_str())
                 }
-                3 => {
+                4 => {
                     app.config.sounds.awaiting_approval = if forward {
                         next_sound(&app.config.sounds.awaiting_approval)
                     } else {
@@ -140,7 +140,7 @@ async fn handle_settings_key(app: &mut App, key: KeyCode) {
                     .to_string();
                     Some(app.config.sounds.awaiting_approval.as_str())
                 }
-                4 => {
+                5 => {
                     app.config.sounds.idle = if forward {
                         next_sound(&app.config.sounds.idle)
                     } else {
@@ -149,7 +149,7 @@ async fn handle_settings_key(app: &mut App, key: KeyCode) {
                     .to_string();
                     Some(app.config.sounds.idle.as_str())
                 }
-                5 => {
+                6 => {
                     app.config.sounds.error = if forward {
                         next_sound(&app.config.sounds.error)
                     } else {
@@ -158,7 +158,7 @@ async fn handle_settings_key(app: &mut App, key: KeyCode) {
                     .to_string();
                     Some(app.config.sounds.error.as_str())
                 }
-                6 => {
+                7 => {
                     app.config.sounds.closed = if forward {
                         next_sound(&app.config.sounds.closed)
                     } else {

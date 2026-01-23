@@ -111,9 +111,8 @@ Tmux mode requires tmux 3.2+.
 Press `s` in the dashboard to open the settings menu:
 
 - **Theme**: `default`, `light`, `monochrome`
+- **Mode**: `minimal` (compact) or `explicit` (shows row numbers and status text)
 - **Sounds**: notification sounds when plates need attention
-
-Press `m` to toggle minimal mode (hides row numbers and status text).
 
 ## Requirements
 

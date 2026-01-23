@@ -250,7 +250,7 @@ fn render_footer(frame: &mut Frame, app: &App, area: Rect) {
         "enter:resume(closed)"
     };
     let base = format!(
-        " q:quit  r:refresh  s:settings  m:minimal  c:closed  {}  del:dismiss",
+        " q:quit  r:refresh  s:settings  c:closed  {}  del:dismiss",
         enter_action
     );
     let text = if app.show_auth_banner {
@@ -265,7 +265,7 @@ fn render_footer(frame: &mut Frame, app: &App, area: Rect) {
 fn render_sound_settings(frame: &mut Frame, app: &App) {
     let area = frame.area();
     let width = 50.min(area.width.saturating_sub(4));
-    let height = 14.min(area.height.saturating_sub(4));
+    let height = 17.min(area.height.saturating_sub(4));
     let x = (area.width.saturating_sub(width)) / 2;
     let y = (area.height.saturating_sub(height)) / 2;
     let modal_area = Rect::new(x, y, width, height);
@@ -278,9 +278,27 @@ fn render_sound_settings(frame: &mut Frame, app: &App) {
 
     let inner_width = inner.width as usize;
 
-    let rows: Vec<(&str, String)> = vec![
-        ("Theme", app.config.theme.name.clone()),
-        (
+    #[derive(Clone)]
+    enum Row {
+        Setting(usize, &'static str, String),
+        Blank,
+    }
+
+    let rows: Vec<Row> = vec![
+        Row::Setting(0, "Theme", app.config.theme.name.clone()),
+        Row::Blank,
+        Row::Setting(
+            1,
+            "Mode",
+            if app.config.minimal_mode {
+                "minimal".to_string()
+            } else {
+                "explicit".to_string()
+            },
+        ),
+        Row::Blank,
+        Row::Setting(
+            2,
             "Sounds Enabled",
             if app.config.sounds.enabled {
                 "yes".to_string()
@@ -288,31 +306,41 @@ fn render_sound_settings(frame: &mut Frame, app: &App) {
                 "no".to_string()
             },
         ),
-        ("  Awaiting Input", app.config.sounds.awaiting_input.clone()),
-        (
+        Row::Setting(
+            3,
+            "  Awaiting Input",
+            app.config.sounds.awaiting_input.clone(),
+        ),
+        Row::Setting(
+            4,
             "  Awaiting Approval",
             app.config.sounds.awaiting_approval.clone(),
         ),
-        ("  Idle", app.config.sounds.idle.clone()),
-        ("  Error", app.config.sounds.error.clone()),
-        ("  Closed", app.config.sounds.closed.clone()),
+        Row::Setting(5, "  Idle", app.config.sounds.idle.clone()),
+        Row::Setting(6, "  Error", app.config.sounds.error.clone()),
+        Row::Setting(7, "  Closed", app.config.sounds.closed.clone()),
     ];
 
     let mut lines: Vec<Line> = Vec::new();
-    for (idx, (label, value)) in rows.iter().enumerate() {
-        let is_selected = idx == app.sound_settings_row;
-        let style = if is_selected {
-            Style::default().add_modifier(Modifier::REVERSED)
-        } else {
-            Style::default()
-        };
-        let row_text = format!("{:20} {}", label, value);
-        let padded = format!("{:<width$}", row_text, width = inner_width);
-        lines.push(Line::from(Span::styled(padded, style)));
+    for row in &rows {
+        match row {
+            Row::Blank => lines.push(Line::from("")),
+            Row::Setting(idx, label, value) => {
+                let is_selected = *idx == app.sound_settings_row;
+                let style = if is_selected {
+                    Style::default().add_modifier(Modifier::REVERSED)
+                } else {
+                    Style::default()
+                };
+                let row_text = format!("{:20} {}", label, value);
+                let padded = format!("{:<width$}", row_text, width = inner_width);
+                lines.push(Line::from(Span::styled(padded, style)));
+            }
+        }
     }
     lines.push(Line::from(""));
     lines.push(Line::from(Span::styled(
-        "esc:close  arrows:navigate  enter/space:change",
+        "s/esc:close  arrows:navigate  enter/space:change",
         Style::default().add_modifier(Modifier::DIM),
     )));
 
