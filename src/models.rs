@@ -25,7 +25,7 @@ impl PlateStatus {
     pub fn needs_attention(&self) -> bool {
         matches!(
             self,
-            Self::AwaitingInput | Self::AwaitingApproval | Self::Idle | Self::Error
+            Self::AwaitingInput | Self::AwaitingApproval | Self::Idle | Self::Error | Self::Closed
         )
     }
 
