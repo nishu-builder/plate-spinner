@@ -1,6 +1,6 @@
 [package]
 name = "plate-spinner"
-version = "0.1.7"
+version = "0.1.8"
 edition = "2021"
 description = "Dashboard for managing multiple concurrent Claude Code sessions"
 repository = "https://github.com/nishu-builder/plate-spinner"
