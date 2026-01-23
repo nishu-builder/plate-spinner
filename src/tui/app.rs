@@ -109,8 +109,11 @@ async fn handle_sound_settings_key(app: &mut App, key: KeyCode) {
         }
         KeyCode::Left | KeyCode::Right | KeyCode::Enter | KeyCode::Char(' ') => {
             let forward = matches!(key, KeyCode::Right | KeyCode::Enter | KeyCode::Char(' '));
-            match app.sound_settings_row {
-                0 => app.config.sounds.enabled = !app.config.sounds.enabled,
+            let sound_to_preview = match app.sound_settings_row {
+                0 => {
+                    app.config.sounds.enabled = !app.config.sounds.enabled;
+                    None
+                }
                 1 => {
                     app.config.sounds.awaiting_input = if forward {
                         next_sound(&app.config.sounds.awaiting_input)
@@ -118,6 +121,7 @@ async fn handle_sound_settings_key(app: &mut App, key: KeyCode) {
                         prev_sound(&app.config.sounds.awaiting_input)
                     }
                     .to_string();
+                    Some(app.config.sounds.awaiting_input.as_str())
                 }
                 2 => {
                     app.config.sounds.awaiting_approval = if forward {
@@ -126,6 +130,7 @@ async fn handle_sound_settings_key(app: &mut App, key: KeyCode) {
                         prev_sound(&app.config.sounds.awaiting_approval)
                     }
                     .to_string();
+                    Some(app.config.sounds.awaiting_approval.as_str())
                 }
                 3 => {
                     app.config.sounds.idle = if forward {
@@ -134,6 +139,7 @@ async fn handle_sound_settings_key(app: &mut App, key: KeyCode) {
                         prev_sound(&app.config.sounds.idle)
                     }
                     .to_string();
+                    Some(app.config.sounds.idle.as_str())
                 }
                 4 => {
                     app.config.sounds.error = if forward {
@@ -142,6 +148,7 @@ async fn handle_sound_settings_key(app: &mut App, key: KeyCode) {
                         prev_sound(&app.config.sounds.error)
                     }
                     .to_string();
+                    Some(app.config.sounds.error.as_str())
                 }
                 5 => {
                     app.config.sounds.closed = if forward {
@@ -150,8 +157,12 @@ async fn handle_sound_settings_key(app: &mut App, key: KeyCode) {
                         prev_sound(&app.config.sounds.closed)
                     }
                     .to_string();
+                    Some(app.config.sounds.closed.as_str())
                 }
-                _ => {}
+                _ => None,
+            };
+            if let Some(sound) = sound_to_preview {
+                play_sound(sound);
             }
             let _ = save_config(&app.config);
         }
