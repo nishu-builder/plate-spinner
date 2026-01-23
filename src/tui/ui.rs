@@ -6,7 +6,7 @@ use ratatui::{
     Frame,
 };
 
-use crate::config::AVAILABLE_SOUNDS;
+use crate::config::{AVAILABLE_SOUNDS, AVAILABLE_THEMES};
 use crate::models::{Plate, PlateStatus};
 
 use super::state::App;
@@ -144,7 +144,8 @@ fn render_plate_item<'a>(
         " "
     };
 
-    let status_color = status_color(plate.status);
+    let theme = &app.config.theme.name;
+    let status_color = status_color(plate.status, theme);
     let icon = plate.status.icon();
 
     let label = format_label(plate.project_name(), plate.git_branch.as_deref());
@@ -241,7 +242,7 @@ fn render_footer(frame: &mut Frame, app: &App, area: Rect) {
         "enter:resume(closed)"
     };
     let base = format!(
-        " q:quit  r:refresh  s:sounds  c:closed  {}  del:dismiss  1-9:jump  esc:deselect",
+        " q:quit  r:refresh  s:settings  c:closed  {}  del:dismiss",
         enter_action
     );
     let text = if app.show_auth_banner {
@@ -256,33 +257,37 @@ fn render_footer(frame: &mut Frame, app: &App, area: Rect) {
 fn render_sound_settings(frame: &mut Frame, app: &App) {
     let area = frame.area();
     let width = 50.min(area.width.saturating_sub(4));
-    let height = 12.min(area.height.saturating_sub(4));
+    let height = 14.min(area.height.saturating_sub(4));
     let x = (area.width.saturating_sub(width)) / 2;
     let y = (area.height.saturating_sub(height)) / 2;
     let modal_area = Rect::new(x, y, width, height);
 
     frame.render_widget(Clear, modal_area);
 
-    let block = Block::default()
-        .title(" Sound Settings ")
-        .borders(Borders::ALL);
+    let block = Block::default().title(" Settings ").borders(Borders::ALL);
     let inner = block.inner(modal_area);
     frame.render_widget(block, modal_area);
 
-    let rows = [
+    let inner_width = inner.width as usize;
+
+    let rows: Vec<(&str, String)> = vec![
+        ("Theme", app.config.theme.name.clone()),
         (
-            "Enabled",
+            "Sounds Enabled",
             if app.config.sounds.enabled {
-                "yes"
+                "yes".to_string()
             } else {
-                "no"
+                "no".to_string()
             },
         ),
-        ("Awaiting Input", &app.config.sounds.awaiting_input),
-        ("Awaiting Approval", &app.config.sounds.awaiting_approval),
-        ("Idle", &app.config.sounds.idle),
-        ("Error", &app.config.sounds.error),
-        ("Closed", &app.config.sounds.closed),
+        ("  Awaiting Input", app.config.sounds.awaiting_input.clone()),
+        (
+            "  Awaiting Approval",
+            app.config.sounds.awaiting_approval.clone(),
+        ),
+        ("  Idle", app.config.sounds.idle.clone()),
+        ("  Error", app.config.sounds.error.clone()),
+        ("  Closed", app.config.sounds.closed.clone()),
     ];
 
     let mut lines: Vec<Line> = Vec::new();
@@ -293,10 +298,9 @@ fn render_sound_settings(frame: &mut Frame, app: &App) {
         } else {
             Style::default()
         };
-        lines.push(Line::from(Span::styled(
-            format!("{:20} {}", label, value),
-            style,
-        )));
+        let row_text = format!("{:20} {}", label, value);
+        let padded = format!("{:<width$}", row_text, width = inner_width);
+        lines.push(Line::from(Span::styled(padded, style)));
     }
     lines.push(Line::from(""));
     lines.push(Line::from(Span::styled(
@@ -308,15 +312,27 @@ fn render_sound_settings(frame: &mut Frame, app: &App) {
     frame.render_widget(para, inner);
 }
 
-fn status_color(status: PlateStatus) -> Color {
-    match status {
-        PlateStatus::Starting => Color::DarkGray,
-        PlateStatus::Running => Color::Green,
-        PlateStatus::Idle => Color::Cyan,
-        PlateStatus::AwaitingInput => Color::Yellow,
-        PlateStatus::AwaitingApproval => Color::Magenta,
-        PlateStatus::Error => Color::Red,
-        PlateStatus::Closed => Color::DarkGray,
+fn status_color(status: PlateStatus, theme: &str) -> Color {
+    match theme {
+        "light" => match status {
+            PlateStatus::Starting => Color::Gray,
+            PlateStatus::Running => Color::DarkGray,
+            PlateStatus::Idle => Color::Blue,
+            PlateStatus::AwaitingInput => Color::Red,
+            PlateStatus::AwaitingApproval => Color::Magenta,
+            PlateStatus::Error => Color::Red,
+            PlateStatus::Closed => Color::Gray,
+        },
+        "monochrome" => Color::Reset,
+        _ => match status {
+            PlateStatus::Starting => Color::DarkGray,
+            PlateStatus::Running => Color::Green,
+            PlateStatus::Idle => Color::Cyan,
+            PlateStatus::AwaitingInput => Color::Yellow,
+            PlateStatus::AwaitingApproval => Color::Magenta,
+            PlateStatus::Error => Color::Red,
+            PlateStatus::Closed => Color::DarkGray,
+        },
     }
 }
 
@@ -355,4 +371,12 @@ pub fn prev_sound(current: &str) -> &'static str {
         .position(|&s| s == current)
         .unwrap_or(0);
     AVAILABLE_SOUNDS[(idx + AVAILABLE_SOUNDS.len() - 1) % AVAILABLE_SOUNDS.len()]
+}
+
+pub fn next_theme(current: &str) -> &'static str {
+    let idx = AVAILABLE_THEMES
+        .iter()
+        .position(|&s| s == current)
+        .unwrap_or(0);
+    AVAILABLE_THEMES[(idx + 1) % AVAILABLE_THEMES.len()]
 }

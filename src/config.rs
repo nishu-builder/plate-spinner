@@ -76,8 +76,10 @@ impl Default for ThemeConfig {
 }
 
 fn default_theme() -> String {
-    "textual-dark".to_string()
+    "default".to_string()
 }
+
+pub const AVAILABLE_THEMES: &[&str] = &["default", "light", "monochrome"];
 
 pub fn get_config_path() -> PathBuf {
     dirs::home_dir()

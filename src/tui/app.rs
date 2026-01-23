@@ -8,7 +8,7 @@ use crate::hook::DAEMON_URL;
 use crate::models::{Plate, PlateStatus};
 
 use super::state::App;
-use super::ui::{next_sound, prev_sound, render};
+use super::ui::{next_sound, next_theme, prev_sound, render};
 
 pub async fn run() -> Result<Option<(String, String)>> {
     let config = load_config();
@@ -52,7 +52,7 @@ pub async fn run() -> Result<Option<(String, String)>> {
 
 async fn handle_key(app: &mut App, key: KeyCode) {
     if app.show_sound_settings {
-        handle_sound_settings_key(app, key).await;
+        handle_settings_key(app, key).await;
         return;
     }
 
@@ -94,7 +94,7 @@ async fn handle_key(app: &mut App, key: KeyCode) {
     }
 }
 
-async fn handle_sound_settings_key(app: &mut App, key: KeyCode) {
+async fn handle_settings_key(app: &mut App, key: KeyCode) {
     match key {
         KeyCode::Esc => app.show_sound_settings = false,
         KeyCode::Up => {
@@ -103,7 +103,7 @@ async fn handle_sound_settings_key(app: &mut App, key: KeyCode) {
             }
         }
         KeyCode::Down => {
-            if app.sound_settings_row < 5 {
+            if app.sound_settings_row < 7 {
                 app.sound_settings_row += 1;
             }
         }
@@ -111,10 +111,14 @@ async fn handle_sound_settings_key(app: &mut App, key: KeyCode) {
             let forward = matches!(key, KeyCode::Right | KeyCode::Enter | KeyCode::Char(' '));
             let sound_to_preview = match app.sound_settings_row {
                 0 => {
-                    app.config.sounds.enabled = !app.config.sounds.enabled;
+                    app.config.theme.name = next_theme(&app.config.theme.name).to_string();
                     None
                 }
                 1 => {
+                    app.config.sounds.enabled = !app.config.sounds.enabled;
+                    None
+                }
+                2 => {
                     app.config.sounds.awaiting_input = if forward {
                         next_sound(&app.config.sounds.awaiting_input)
                     } else {
@@ -123,7 +127,7 @@ async fn handle_sound_settings_key(app: &mut App, key: KeyCode) {
                     .to_string();
                     Some(app.config.sounds.awaiting_input.as_str())
                 }
-                2 => {
+                3 => {
                     app.config.sounds.awaiting_approval = if forward {
                         next_sound(&app.config.sounds.awaiting_approval)
                     } else {
@@ -132,7 +136,7 @@ async fn handle_sound_settings_key(app: &mut App, key: KeyCode) {
                     .to_string();
                     Some(app.config.sounds.awaiting_approval.as_str())
                 }
-                3 => {
+                4 => {
                     app.config.sounds.idle = if forward {
                         next_sound(&app.config.sounds.idle)
                     } else {
@@ -141,7 +145,7 @@ async fn handle_sound_settings_key(app: &mut App, key: KeyCode) {
                     .to_string();
                     Some(app.config.sounds.idle.as_str())
                 }
-                4 => {
+                5 => {
                     app.config.sounds.error = if forward {
                         next_sound(&app.config.sounds.error)
                     } else {
@@ -150,7 +154,7 @@ async fn handle_sound_settings_key(app: &mut App, key: KeyCode) {
                     .to_string();
                     Some(app.config.sounds.error.as_str())
                 }
-                5 => {
+                6 => {
                     app.config.sounds.closed = if forward {
                         next_sound(&app.config.sounds.closed)
                     } else {
