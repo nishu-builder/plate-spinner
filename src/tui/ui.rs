@@ -321,6 +321,8 @@ fn render_sound_settings(frame: &mut Frame, app: &App) {
         Row::Setting(7, "  Closed", app.config.sounds.closed.clone()),
     ];
 
+    let chunks = Layout::vertical([Constraint::Min(0), Constraint::Length(1)]).split(inner);
+
     let mut lines: Vec<Line> = Vec::new();
     for row in &rows {
         match row {
@@ -338,14 +340,13 @@ fn render_sound_settings(frame: &mut Frame, app: &App) {
             }
         }
     }
-    lines.push(Line::from(""));
-    lines.push(Line::from(Span::styled(
-        "s/esc:close  arrows:navigate  enter/space:change",
-        Style::default().add_modifier(Modifier::DIM),
-    )));
 
     let para = Paragraph::new(lines);
-    frame.render_widget(para, inner);
+    frame.render_widget(para, chunks[0]);
+
+    let help = Paragraph::new("s/esc:close  arrows:navigate  enter/space:change")
+        .style(Style::default().add_modifier(Modifier::DIM));
+    frame.render_widget(help, chunks[1]);
 }
 
 fn status_color(status: PlateStatus, theme: &str) -> Color {
