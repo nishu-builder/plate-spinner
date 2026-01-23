@@ -210,8 +210,15 @@ pub fn summarize_session(
 
     let summary = call_api(&api_key, &prompt, 60)?;
 
-    // Try to extract goal from the summary (everything before the first colon)
-    let goal = summary.split_once(':').map(|(g, _)| g.trim().to_string());
+    // Extract goal from the summary (everything before the first colon)
+    // If no colon, use the whole summary as the goal to prevent re-extraction loops
+    let goal = summary
+        .split_once(':')
+        .map(|(g, _)| g.trim().to_string())
+        .unwrap_or_else(|| summary.clone());
 
-    Some(SummaryResult { goal, summary })
+    Some(SummaryResult {
+        goal: Some(goal),
+        summary,
+    })
 }

@@ -89,7 +89,13 @@ fn maybe_summarize(state: Arc<AppState>, event: HookEvent, status: PlateStatus) 
 
     let cached_goal = {
         let db = state.db.lock().unwrap();
-        db.get_goal(&session_id).ok().flatten()
+        db.get_goal(&session_id).ok().flatten().or_else(|| {
+            // Fall back to extracting goal from existing summary if it has colon format
+            db.get_summary(&session_id)
+                .ok()
+                .flatten()
+                .and_then(|s| s.split_once(':').map(|(g, _)| g.trim().to_string()))
+        })
     };
 
     tokio::task::spawn_blocking(move || {
