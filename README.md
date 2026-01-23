@@ -6,6 +6,15 @@
 
 Dashboard for managing multiple concurrent Claude Code sessions.
 
+- Real-time status for all sessions
+- AI-generated summaries of what each session is doing
+- Sound notifications when sessions need attention
+- Optional tmux integration for window jumping
+- Resume closed sessions
+
+<img src="assets/screenshot-minimal.png" alt="Minimal mode" width="500"/>
+<img src="assets/screenshot-explicit.png" alt="Explicit mode with closed section" width="500"/>
+
 ## Installation
 
 ```bash
@@ -27,11 +36,6 @@ sp                      # Open dashboard (terminal 1)
 sp run                  # Start tracked plate (terminal 2)
 sp run                  # Start another (terminal 3)
 ```
-
-<img src="assets/screenshot-minimal.png" alt="Minimal mode" width="500"/>
-<img src="assets/screenshot-explicit.png" alt="Explicit mode with closed section" width="500"/>
-<img src="assets/screenshot-settings.png" alt="Settings" width="500"/>
-
 
 
 ## Plate States
