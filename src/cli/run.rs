@@ -1,4 +1,6 @@
 use anyhow::Result;
+use signal_hook::consts::{SIGHUP, SIGINT, SIGTERM};
+use signal_hook::iterator::Signals;
 use std::os::unix::process::CommandExt;
 use std::process::Command;
 
@@ -31,6 +33,16 @@ fn run_without_tmux(claude_args: Vec<String>) -> Result<()> {
     let project_path = std::env::current_dir()
         .map(|p| p.to_string_lossy().to_string())
         .unwrap_or_else(|_| ".".to_string());
+
+    let signal_project_path = project_path.clone();
+    if let Ok(mut signals) = Signals::new([SIGHUP, SIGINT, SIGTERM]) {
+        std::thread::spawn(move || {
+            if signals.forever().next().is_some() {
+                notify_stopped(&signal_project_path);
+                std::process::exit(1);
+            }
+        });
+    }
 
     let mut cmd = Command::new("claude");
     cmd.env("PLATE_SPINNER", "1");
