@@ -12,6 +12,7 @@ pub struct App {
     pub previous_statuses: HashMap<String, PlateStatus>,
     pub config: Config,
     pub should_quit: bool,
+    pub resume_plate: Option<(String, String)>,
     pub show_sound_settings: bool,
     pub sound_settings_row: usize,
     pub show_auth_banner: bool,
@@ -30,6 +31,7 @@ impl App {
             previous_statuses: HashMap::new(),
             config,
             should_quit: false,
+            resume_plate: None,
             show_sound_settings: false,
             sound_settings_row: 0,
             show_auth_banner: !has_api_key && !banner_dismissed,
@@ -132,11 +134,36 @@ impl App {
             return;
         }
 
-        if !self.config.tmux_mode {
+        let Some(plate) = self.selected_plate() else {
             return;
-        }
+        };
 
-        if let Some(plate) = self.selected_plate() {
+        let is_closed = plate.status == PlateStatus::Closed;
+
+        if is_closed {
+            if self.config.tmux_mode {
+                let session_id = plate.session_id.clone();
+                let project_path = plate.project_path.clone();
+                let _ = Command::new("tmux")
+                    .args([
+                        "new-window",
+                        "-n",
+                        &format!("resume-{}", &session_id[..8.min(session_id.len())]),
+                        "--",
+                        "sh",
+                        "-c",
+                        &format!(
+                            "cd {} && claude --resume {}; exit",
+                            shell_words::quote(&project_path),
+                            shell_words::quote(&session_id)
+                        ),
+                    ])
+                    .status();
+            } else {
+                self.resume_plate = Some((plate.session_id.clone(), plate.project_path.clone()));
+                self.should_quit = true;
+            }
+        } else if self.config.tmux_mode {
             if let Some(ref target) = plate.tmux_target {
                 let window = target.split(':').last().unwrap_or(target);
                 let _ = Command::new("tmux")

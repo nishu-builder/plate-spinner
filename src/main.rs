@@ -170,9 +170,24 @@ fn main() {
         Some(Commands::Tui) => {
             ensure_daemon_running();
             let rt = tokio::runtime::Runtime::new().expect("Failed to create runtime");
-            if let Err(e) = rt.block_on(plate_spinner::tui::run()) {
-                eprintln!("TUI error: {}", e);
-                std::process::exit(1);
+            match rt.block_on(plate_spinner::tui::run()) {
+                Ok(Some((session_id, project_path))) => {
+                    if let Err(e) = std::env::set_current_dir(&project_path) {
+                        eprintln!("Failed to change directory: {}", e);
+                        std::process::exit(1);
+                    }
+                    let err = Command::new("claude")
+                        .arg("--resume")
+                        .arg(&session_id)
+                        .exec();
+                    eprintln!("Failed to exec claude: {}", err);
+                    std::process::exit(1);
+                }
+                Ok(None) => {}
+                Err(e) => {
+                    eprintln!("TUI error: {}", e);
+                    std::process::exit(1);
+                }
             }
         }
         None => {
@@ -250,9 +265,24 @@ fn main() {
             } else {
                 ensure_daemon_running();
                 let rt = tokio::runtime::Runtime::new().expect("Failed to create runtime");
-                if let Err(e) = rt.block_on(plate_spinner::tui::run()) {
-                    eprintln!("TUI error: {}", e);
-                    std::process::exit(1);
+                match rt.block_on(plate_spinner::tui::run()) {
+                    Ok(Some((session_id, project_path))) => {
+                        if let Err(e) = std::env::set_current_dir(&project_path) {
+                            eprintln!("Failed to change directory: {}", e);
+                            std::process::exit(1);
+                        }
+                        let err = Command::new("claude")
+                            .arg("--resume")
+                            .arg(&session_id)
+                            .exec();
+                        eprintln!("Failed to exec claude: {}", err);
+                        std::process::exit(1);
+                    }
+                    Ok(None) => {}
+                    Err(e) => {
+                        eprintln!("TUI error: {}", e);
+                        std::process::exit(1);
+                    }
                 }
             }
         }

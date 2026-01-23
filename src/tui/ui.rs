@@ -234,10 +234,19 @@ fn render_auth_banner(frame: &mut Frame, area: Rect) {
 }
 
 fn render_footer(frame: &mut Frame, app: &App, area: Rect) {
-    let text = if app.show_auth_banner {
-        " q:quit  r:refresh  s:sounds  c:closed  enter:resume  del:dismiss  1-9:jump  esc:deselect  d:dismiss banner "
+    let enter_action = if app.config.tmux_mode {
+        "enter:jump"
     } else {
-        " q:quit  r:refresh  s:sounds  c:closed  enter:resume  del:dismiss  1-9:jump  esc:deselect "
+        "enter:resume(closed)"
+    };
+    let base = format!(
+        " q:quit  r:refresh  s:sounds  c:closed  {}  del:dismiss  1-9:jump  esc:deselect",
+        enter_action
+    );
+    let text = if app.show_auth_banner {
+        format!("{}  d:dismiss banner ", base)
+    } else {
+        format!("{} ", base)
     };
     let footer = Paragraph::new(text).style(Style::default().add_modifier(Modifier::DIM));
     frame.render_widget(footer, area);
