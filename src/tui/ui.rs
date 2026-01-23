@@ -88,7 +88,7 @@ fn render_plates(frame: &mut Frame, app: &App, area: Rect) {
         ));
     }
 
-    if closed_count > 0 {
+    if closed_count > 0 && !app.config.minimal_mode {
         if open_count > 0 {
             items.push(ListItem::new(Line::from("")));
         }
@@ -244,15 +244,26 @@ fn render_auth_banner(frame: &mut Frame, area: Rect) {
 }
 
 fn render_footer(frame: &mut Frame, app: &App, area: Rect) {
+    let on_closed_plate = app
+        .selected_plate()
+        .map(|p| p.status == PlateStatus::Closed)
+        .unwrap_or(false);
+
     let enter_action = if app.config.tmux_mode {
-        "enter:jump"
+        Some("enter:jump")
+    } else if on_closed_plate {
+        Some("enter:resume")
     } else {
-        "enter:resume(closed)"
+        None
     };
-    let base = format!(
-        " esc:quit  r:refresh  s:settings  c:closed  {}  del:dismiss",
-        enter_action
-    );
+
+    let base = match enter_action {
+        Some(action) => format!(
+            " esc:quit  r:refresh  s:settings  c:closed  {}  del:dismiss",
+            action
+        ),
+        None => " esc:quit  r:refresh  s:settings  c:closed  del:dismiss".to_string(),
+    };
     let text = if app.show_auth_banner {
         format!("{}  d:dismiss banner ", base)
     } else {

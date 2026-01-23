@@ -79,6 +79,9 @@ impl App {
     }
 
     pub fn is_on_closed_header(&self) -> bool {
+        if self.config.minimal_mode {
+            return false;
+        }
         let open_count = self.open_plates().len();
         let closed_count = self.closed_plates().len();
         closed_count > 0 && self.selected_index == Some(open_count)
@@ -91,7 +94,7 @@ impl App {
     pub fn max_selectable_index(&self) -> usize {
         let open_count = self.open_plates().len();
         let closed_count = self.closed_plates().len();
-        if closed_count == 0 {
+        if closed_count == 0 || self.config.minimal_mode {
             open_count.saturating_sub(1)
         } else if self.closed_expanded {
             open_count + closed_count
