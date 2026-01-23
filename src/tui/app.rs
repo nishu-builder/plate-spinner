@@ -70,10 +70,12 @@ async fn handle_key(app: &mut App, key: KeyCode) {
             }
         }
         KeyCode::Up => {
+            app.mark_seen();
             app.move_up();
             app.mark_seen();
         }
         KeyCode::Down => {
+            app.mark_seen();
             app.move_down();
             app.mark_seen();
         }
@@ -85,6 +87,7 @@ async fn handle_key(app: &mut App, key: KeyCode) {
         KeyCode::Char(c) if c.is_ascii_digit() => {
             let n = c.to_digit(10).unwrap_or(0) as usize;
             if (1..=9).contains(&n) {
+                app.mark_seen();
                 app.jump(n - 1);
                 app.mark_seen();
             }
