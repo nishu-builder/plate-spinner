@@ -113,6 +113,8 @@ Press `s` in the dashboard to open the settings menu:
 - **Theme**: `default`, `light`, `monochrome`
 - **Sounds**: notification sounds when plates need attention
 
+Press `m` to toggle minimal mode (hides row numbers and status text).
+
 ## Requirements
 
 - Claude Code
