@@ -30,15 +30,51 @@ if [ -n "$(git status --porcelain)" ]; then
 fi
 
 COMMIT=$(git rev-parse HEAD)
-CI_STATUS=$(gh run list --commit "$COMMIT" --status completed --json conclusion --jq '.[0].conclusion // "none"' 2>/dev/null || echo "error")
+MAX_WAIT=360  # 6 minutes (2x typical CI time of ~3 min)
+POLL_INTERVAL=10
+
+check_ci_status() {
+    gh run list --commit "$COMMIT" --status completed --json conclusion --jq '.[0].conclusion // "none"' 2>/dev/null || echo "error"
+}
+
+wait_for_ci() {
+    local elapsed=0
+    echo "Waiting for CI to complete (polling every ${POLL_INTERVAL}s, max ${MAX_WAIT}s)..."
+    while [ $elapsed -lt $MAX_WAIT ]; do
+        sleep $POLL_INTERVAL
+        elapsed=$((elapsed + POLL_INTERVAL))
+        CI_STATUS=$(check_ci_status)
+        if [ "$CI_STATUS" = "success" ]; then
+            echo "CI passed!"
+            return 0
+        elif [ "$CI_STATUS" != "none" ] && [ "$CI_STATUS" != "error" ]; then
+            echo "CI finished with status: $CI_STATUS"
+            return 1
+        fi
+        printf "\r  %ds elapsed..." $elapsed
+    done
+    echo ""
+    echo "Timeout waiting for CI"
+    return 1
+}
+
+CI_STATUS=$(check_ci_status)
 
 if [ "$CI_STATUS" = "error" ]; then
     echo "Error: Could not check CI status. Is 'gh' installed and authenticated?"
     exit 1
 elif [ "$CI_STATUS" = "none" ]; then
-    echo "Error: No completed CI run found for commit $COMMIT"
-    echo "Push and wait for CI to pass before releasing."
-    exit 1
+    echo "No completed CI run found for commit $COMMIT"
+    read -p "Wait for CI to complete? [y/N] " -n 1 -r
+    echo
+    if [[ $REPLY =~ ^[Yy]$ ]]; then
+        if ! wait_for_ci; then
+            exit 1
+        fi
+    else
+        echo "Aborted."
+        exit 1
+    fi
 elif [ "$CI_STATUS" != "success" ]; then
     echo "Error: CI status for commit $COMMIT is '$CI_STATUS', not 'success'"
     exit 1
