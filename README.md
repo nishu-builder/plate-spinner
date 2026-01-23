@@ -28,7 +28,9 @@ sp run                  # Start tracked plate (terminal 2)
 sp run                  # Start another (terminal 3)
 ```
 
-<img src="assets/screenshot.png" alt="Plate-Spinner screenshot" width="900"/>
+<img src="assets/screenshot-minimal.png" alt="Minimal mode" width="500"/>
+<img src="assets/screenshot-explicit.png" alt="Explicit mode with closed section" width="500"/>
+<img src="assets/screenshot-settings.png" alt="Settings" width="500"/>
 
 
 
