@@ -57,8 +57,7 @@ async fn handle_key(app: &mut App, key: KeyCode) {
     }
 
     match key {
-        KeyCode::Char('q') => app.should_quit = true,
-        KeyCode::Esc => app.deselect(),
+        KeyCode::Esc => app.should_quit = true,
         KeyCode::Char('r') => refresh(app).await,
         KeyCode::Char('s') => {
             app.show_sound_settings = true;

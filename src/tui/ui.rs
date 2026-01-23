@@ -250,7 +250,7 @@ fn render_footer(frame: &mut Frame, app: &App, area: Rect) {
         "enter:resume(closed)"
     };
     let base = format!(
-        " q:quit  r:refresh  s:settings  c:closed  {}  del:dismiss",
+        " esc:quit  r:refresh  s:settings  c:closed  {}  del:dismiss",
         enter_action
     );
     let text = if app.show_auth_banner {
