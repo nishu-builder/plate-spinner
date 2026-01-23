@@ -7,7 +7,7 @@ use std::path::PathBuf;
 pub struct Config {
     #[serde(default)]
     pub tmux_mode: bool,
-    #[serde(default)]
+    #[serde(default = "default_true")]
     pub minimal_mode: bool,
     #[serde(default)]
     pub sounds: SoundsConfig,
