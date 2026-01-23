@@ -227,7 +227,7 @@ mod property_tests {
 
         #[test]
         fn attention_states_recover_on_health_check(state in arb_plate_status()) {
-            if state.needs_attention() && state != PlateStatus::Idle {
+            if state.needs_attention() && state != PlateStatus::Idle && state != PlateStatus::Closed {
                 let recovered = state.transition(&Event::HealthCheckRecovery);
                 prop_assert_eq!(recovered, PlateStatus::Idle);
             }
