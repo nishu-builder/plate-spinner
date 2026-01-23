@@ -29,6 +29,21 @@ if [ -n "$(git status --porcelain)" ]; then
     exit 1
 fi
 
+COMMIT=$(git rev-parse HEAD)
+CI_STATUS=$(gh run list --commit "$COMMIT" --status completed --json conclusion --jq '.[0].conclusion // "none"' 2>/dev/null || echo "error")
+
+if [ "$CI_STATUS" = "error" ]; then
+    echo "Error: Could not check CI status. Is 'gh' installed and authenticated?"
+    exit 1
+elif [ "$CI_STATUS" = "none" ]; then
+    echo "Error: No completed CI run found for commit $COMMIT"
+    echo "Push and wait for CI to pass before releasing."
+    exit 1
+elif [ "$CI_STATUS" != "success" ]; then
+    echo "Error: CI status for commit $COMMIT is '$CI_STATUS', not 'success'"
+    exit 1
+fi
+
 if git rev-parse "$TAG" >/dev/null 2>&1; then
     echo "Error: Tag $TAG already exists"
     exit 1
