@@ -104,6 +104,7 @@ fn main() {
             });
         }
         Some(Commands::Run { claude_args }) => {
+            plate_spinner::cli::install::warn_if_hooks_missing();
             if let Err(e) = plate_spinner::cli::run::run(claude_args) {
                 eprintln!("Error: {}", e);
                 std::process::exit(1);
@@ -197,6 +198,7 @@ fn main() {
         None => {
             use plate_spinner::config::load_config;
 
+            plate_spinner::cli::install::warn_if_hooks_missing();
             let config = load_config();
 
             if config.tmux_mode {
