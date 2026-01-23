@@ -1,17 +1,21 @@
 # Plate-Spinner
 
+[![Crates.io](https://img.shields.io/crates/v/plate-spinner.svg)](https://crates.io/crates/plate-spinner)
+[![CI](https://github.com/nishu-builder/plate-spinner/actions/workflows/ci.yml/badge.svg)](https://github.com/nishu-builder/plate-spinner/actions)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
 Dashboard for managing multiple concurrent Claude Code sessions.
 
 ## Installation
 
 ```bash
-curl --proto '=https' --tlsv1.2 -LsSf https://github.com/nishu-builder/plate-spinner/releases/latest/download/plate-spinner-installer.sh | sh
+cargo install plate-spinner
 ```
 
-Or build from source:
+Or via installer script:
 
 ```bash
-cargo install --git https://github.com/nishu-builder/plate-spinner
+curl --proto '=https' --tlsv1.2 -LsSf https://github.com/nishu-builder/plate-spinner/releases/latest/download/plate-spinner-installer.sh | sh
 ```
 
 ## Quick Start

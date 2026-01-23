@@ -9,7 +9,11 @@ use plate_spinner::db::Database;
 use plate_spinner::ensure_daemon_running;
 
 #[derive(Parser)]
-#[command(name = "sp", about = "Dashboard for managing Claude Code plates")]
+#[command(
+    name = "sp",
+    version,
+    about = "Dashboard for managing Claude Code plates"
+)]
 struct Cli {
     #[command(subcommand)]
     command: Option<Commands>,

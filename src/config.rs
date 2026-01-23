@@ -88,7 +88,9 @@ pub fn get_config_path() -> PathBuf {
 }
 
 pub fn get_data_dir() -> PathBuf {
-    dirs::home_dir().unwrap_or_default().join(".plate-spinner")
+    dirs::data_dir()
+        .unwrap_or_else(|| dirs::home_dir().unwrap_or_default().join(".local/share"))
+        .join("plate-spinner")
 }
 
 pub fn load_config() -> Config {
