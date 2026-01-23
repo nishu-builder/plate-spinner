@@ -58,6 +58,22 @@ wait_for_ci() {
     return 1
 }
 
+if git rev-parse "$TAG" >/dev/null 2>&1; then
+    echo "Error: Tag $TAG already exists"
+    exit 1
+fi
+
+echo "Current version: $CURRENT_VERSION"
+echo "New version: $VERSION"
+echo ""
+
+read -p "Continue? [y/N] " -n 1 -r
+echo
+if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+    echo "Aborted."
+    exit 1
+fi
+
 CI_STATUS=$(check_ci_status)
 
 if [ "$CI_STATUS" = "error" ]; then
@@ -77,22 +93,6 @@ elif [ "$CI_STATUS" = "none" ]; then
     fi
 elif [ "$CI_STATUS" != "success" ]; then
     echo "Error: CI status for commit $COMMIT is '$CI_STATUS', not 'success'"
-    exit 1
-fi
-
-if git rev-parse "$TAG" >/dev/null 2>&1; then
-    echo "Error: Tag $TAG already exists"
-    exit 1
-fi
-
-echo "Current version: $CURRENT_VERSION"
-echo "New version: $VERSION"
-echo ""
-
-read -p "Continue? [y/N] " -n 1 -r
-echo
-if [[ ! $REPLY =~ ^[Yy]$ ]]; then
-    echo "Aborted."
     exit 1
 fi
 
