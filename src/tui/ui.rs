@@ -66,7 +66,11 @@ fn render_plates(frame: &mut Frame, app: &App, area: Rect) {
     } else {
         (total_items.ilog10() + 1) as usize
     };
-    let prefix_width = 2 + num_width + 1 + 1 + 1 + 1 + 25 + 1 + 8 + 1;
+    let prefix_width = if app.config.minimal_mode {
+        1 + 1 + 1 + 25 + 1 // unseen + icon + space + label + space
+    } else {
+        2 + num_width + 1 + 1 + 1 + 1 + 25 + 1 + 8 + 1
+    };
     let summary_width = (area.width as usize).saturating_sub(prefix_width).max(1);
     let mut items: Vec<ListItem> = Vec::new();
 
@@ -150,7 +154,6 @@ fn render_plate_item<'a>(
 
     let label = format_label(plate.project_name(), plate.git_branch.as_deref());
 
-    let status_short = pad_or_truncate(plate.status.short_name(), 8);
     let todo = plate.todo_progress.as_deref().unwrap_or("");
     let summary = plate.summary.as_deref().unwrap_or("");
     let full_summary = if todo.is_empty() {
@@ -167,15 +170,20 @@ fn render_plate_item<'a>(
         Style::default().fg(status_color)
     };
 
-    let prefix = format!(
-        "[{:>width$}]{} {} {} {}",
-        idx + 1,
-        unseen_marker,
-        icon,
-        label,
-        status_short,
-        width = num_width,
-    );
+    let prefix = if app.config.minimal_mode {
+        format!("{}{} {}", unseen_marker, icon, label)
+    } else {
+        let status_short = pad_or_truncate(plate.status.short_name(), 8);
+        format!(
+            "[{:>width$}]{} {} {} {}",
+            idx + 1,
+            unseen_marker,
+            icon,
+            label,
+            status_short,
+            width = num_width,
+        )
+    };
 
     if is_selected {
         let mut lines: Vec<Line> = Vec::new();
@@ -242,7 +250,7 @@ fn render_footer(frame: &mut Frame, app: &App, area: Rect) {
         "enter:resume(closed)"
     };
     let base = format!(
-        " q:quit  r:refresh  s:settings  c:closed  {}  del:dismiss",
+        " q:quit  r:refresh  s:settings  m:minimal  c:closed  {}  del:dismiss",
         enter_action
     );
     let text = if app.show_auth_banner {

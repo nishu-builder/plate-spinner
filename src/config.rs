@@ -8,6 +8,8 @@ pub struct Config {
     #[serde(default)]
     pub tmux_mode: bool,
     #[serde(default)]
+    pub minimal_mode: bool,
+    #[serde(default)]
     pub sounds: SoundsConfig,
     #[serde(default)]
     pub theme: ThemeConfig,

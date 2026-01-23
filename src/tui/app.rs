@@ -65,6 +65,10 @@ async fn handle_key(app: &mut App, key: KeyCode) {
             app.sound_settings_row = 0;
         }
         KeyCode::Char('c') => app.toggle_closed(),
+        KeyCode::Char('m') => {
+            app.config.minimal_mode = !app.config.minimal_mode;
+            let _ = save_config(&app.config);
+        }
         KeyCode::Char('d') => {
             if app.show_auth_banner {
                 app.dismiss_auth_banner();
