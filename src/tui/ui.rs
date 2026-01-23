@@ -127,6 +127,7 @@ fn render_plates(frame: &mut Frame, app: &App, area: Rect) {
     frame.render_widget(list, area);
 }
 
+#[allow(clippy::too_many_arguments)]
 fn render_plate_item<'a>(
     app: &App,
     plate: &Plate,

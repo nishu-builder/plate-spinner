@@ -105,7 +105,7 @@ impl App {
             Some(idx) if idx > 0 => self.selected_index = Some(idx - 1),
             None => {
                 let max = self.max_selectable_index();
-                if max > 0 || !self.open_plates().is_empty() || self.closed_plates().len() > 0 {
+                if max > 0 || !self.open_plates().is_empty() || !self.closed_plates().is_empty() {
                     self.selected_index = Some(max);
                 }
             }
@@ -117,7 +117,10 @@ impl App {
         let max = self.max_selectable_index();
         match self.selected_index {
             Some(idx) if idx < max => self.selected_index = Some(idx + 1),
-            None if max > 0 || !self.open_plates().is_empty() || self.closed_plates().len() > 0 => {
+            None if max > 0
+                || !self.open_plates().is_empty()
+                || !self.closed_plates().is_empty() =>
+            {
                 self.selected_index = Some(0)
             }
             _ => {}
@@ -165,7 +168,7 @@ impl App {
             }
         } else if self.config.tmux_mode {
             if let Some(ref target) = plate.tmux_target {
-                let window = target.split(':').last().unwrap_or(target);
+                let window = target.split(':').next_back().unwrap_or(target);
                 let _ = Command::new("tmux")
                     .args(["select-window", "-t", window])
                     .status();
