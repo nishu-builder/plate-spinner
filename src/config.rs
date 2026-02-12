@@ -165,7 +165,32 @@ pub fn delete_auth_config() -> anyhow::Result<()> {
 }
 
 pub const AVAILABLE_SOUNDS: &[&str] = &[
-    "alert", "bell", "click", "error", "long-pop", "pop", "tap", "none",
+    "alert",
+    "bell",
+    "click",
+    "error",
+    "long-pop",
+    "peon-angry-1",
+    "peon-angry-2",
+    "peon-angry-3",
+    "peon-angry-4",
+    "peon-death",
+    "peon-ready",
+    "peon-what-1",
+    "peon-what-2",
+    "peon-what-3",
+    "peon-what-4",
+    "peon-warcry",
+    "peon-yes-1",
+    "peon-yes-2",
+    "peon-yes-3",
+    "peon-yes-4",
+    "peon-yes-attack-1",
+    "peon-yes-attack-2",
+    "peon-yes-attack-3",
+    "pop",
+    "tap",
+    "none",
 ];
 
 pub const SOUND_ALERT: &[u8] = include_bytes!("../sounds/alert.wav");
@@ -175,6 +200,24 @@ pub const SOUND_ERROR: &[u8] = include_bytes!("../sounds/error.wav");
 pub const SOUND_LONG_POP: &[u8] = include_bytes!("../sounds/long-pop.wav");
 pub const SOUND_POP: &[u8] = include_bytes!("../sounds/pop.wav");
 pub const SOUND_TAP: &[u8] = include_bytes!("../sounds/tap.wav");
+pub const SOUND_PEON_READY: &[u8] = include_bytes!("../sounds/peon-ready.wav");
+pub const SOUND_PEON_WHAT_1: &[u8] = include_bytes!("../sounds/peon-what-1.wav");
+pub const SOUND_PEON_WHAT_2: &[u8] = include_bytes!("../sounds/peon-what-2.wav");
+pub const SOUND_PEON_WHAT_3: &[u8] = include_bytes!("../sounds/peon-what-3.wav");
+pub const SOUND_PEON_WHAT_4: &[u8] = include_bytes!("../sounds/peon-what-4.wav");
+pub const SOUND_PEON_YES_1: &[u8] = include_bytes!("../sounds/peon-yes-1.wav");
+pub const SOUND_PEON_YES_2: &[u8] = include_bytes!("../sounds/peon-yes-2.wav");
+pub const SOUND_PEON_YES_3: &[u8] = include_bytes!("../sounds/peon-yes-3.wav");
+pub const SOUND_PEON_YES_4: &[u8] = include_bytes!("../sounds/peon-yes-4.wav");
+pub const SOUND_PEON_YES_ATTACK_1: &[u8] = include_bytes!("../sounds/peon-yes-attack-1.wav");
+pub const SOUND_PEON_YES_ATTACK_2: &[u8] = include_bytes!("../sounds/peon-yes-attack-2.wav");
+pub const SOUND_PEON_YES_ATTACK_3: &[u8] = include_bytes!("../sounds/peon-yes-attack-3.wav");
+pub const SOUND_PEON_ANGRY_1: &[u8] = include_bytes!("../sounds/peon-angry-1.wav");
+pub const SOUND_PEON_ANGRY_2: &[u8] = include_bytes!("../sounds/peon-angry-2.wav");
+pub const SOUND_PEON_ANGRY_3: &[u8] = include_bytes!("../sounds/peon-angry-3.wav");
+pub const SOUND_PEON_ANGRY_4: &[u8] = include_bytes!("../sounds/peon-angry-4.wav");
+pub const SOUND_PEON_DEATH: &[u8] = include_bytes!("../sounds/peon-death.wav");
+pub const SOUND_PEON_WARCRY: &[u8] = include_bytes!("../sounds/peon-warcry.wav");
 
 pub fn get_sound_bytes(name: &str) -> Option<&'static [u8]> {
     match name {
@@ -185,6 +228,24 @@ pub fn get_sound_bytes(name: &str) -> Option<&'static [u8]> {
         "long-pop" => Some(SOUND_LONG_POP),
         "pop" => Some(SOUND_POP),
         "tap" => Some(SOUND_TAP),
+        "peon-angry-1" => Some(SOUND_PEON_ANGRY_1),
+        "peon-angry-2" => Some(SOUND_PEON_ANGRY_2),
+        "peon-angry-3" => Some(SOUND_PEON_ANGRY_3),
+        "peon-angry-4" => Some(SOUND_PEON_ANGRY_4),
+        "peon-death" => Some(SOUND_PEON_DEATH),
+        "peon-ready" => Some(SOUND_PEON_READY),
+        "peon-what-1" => Some(SOUND_PEON_WHAT_1),
+        "peon-what-2" => Some(SOUND_PEON_WHAT_2),
+        "peon-what-3" => Some(SOUND_PEON_WHAT_3),
+        "peon-what-4" => Some(SOUND_PEON_WHAT_4),
+        "peon-warcry" => Some(SOUND_PEON_WARCRY),
+        "peon-yes-1" => Some(SOUND_PEON_YES_1),
+        "peon-yes-2" => Some(SOUND_PEON_YES_2),
+        "peon-yes-3" => Some(SOUND_PEON_YES_3),
+        "peon-yes-4" => Some(SOUND_PEON_YES_4),
+        "peon-yes-attack-1" => Some(SOUND_PEON_YES_ATTACK_1),
+        "peon-yes-attack-2" => Some(SOUND_PEON_YES_ATTACK_2),
+        "peon-yes-attack-3" => Some(SOUND_PEON_YES_ATTACK_3),
         _ => None,
     }
 }
